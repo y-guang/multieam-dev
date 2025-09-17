@@ -5,3 +5,7 @@ accumulate_evidence_ddm_naive <- function(A, V, ndt, dt, max_reached, max_t, noi
     .Call('_multieam_accumulate_evidence_ddm_naive', PACKAGE = 'multieam', A, V, ndt, dt, max_reached, max_t, noise_mechanism)
 }
 
+accumulate_evidence_ddm_naive_with_custom_noise <- function(A, V, ndt, dt, max_reached, max_t, noise_mechanism = "add", noise_func = NULL) {
+    .Call('_multieam_accumulate_evidence_ddm_naive_with_custom_noise', PACKAGE = 'multieam', A, V, ndt, dt, max_reached, max_t, noise_mechanism, noise_func)
+}
+

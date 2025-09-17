@@ -27,9 +27,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// accumulate_evidence_ddm_naive_with_custom_noise
+List accumulate_evidence_ddm_naive_with_custom_noise(NumericVector A, NumericVector V, NumericVector ndt, double dt, int max_reached, double max_t, String noise_mechanism, Function noise_func);
+RcppExport SEXP _multieam_accumulate_evidence_ddm_naive_with_custom_noise(SEXP ASEXP, SEXP VSEXP, SEXP ndtSEXP, SEXP dtSEXP, SEXP max_reachedSEXP, SEXP max_tSEXP, SEXP noise_mechanismSEXP, SEXP noise_funcSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericVector >::type A(ASEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type V(VSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type ndt(ndtSEXP);
+    Rcpp::traits::input_parameter< double >::type dt(dtSEXP);
+    Rcpp::traits::input_parameter< int >::type max_reached(max_reachedSEXP);
+    Rcpp::traits::input_parameter< double >::type max_t(max_tSEXP);
+    Rcpp::traits::input_parameter< String >::type noise_mechanism(noise_mechanismSEXP);
+    Rcpp::traits::input_parameter< Function >::type noise_func(noise_funcSEXP);
+    rcpp_result_gen = Rcpp::wrap(accumulate_evidence_ddm_naive_with_custom_noise(A, V, ndt, dt, max_reached, max_t, noise_mechanism, noise_func));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_multieam_accumulate_evidence_ddm_naive", (DL_FUNC) &_multieam_accumulate_evidence_ddm_naive, 7},
+    {"_multieam_accumulate_evidence_ddm_naive_with_custom_noise", (DL_FUNC) &_multieam_accumulate_evidence_ddm_naive_with_custom_noise, 8},
     {NULL, NULL, 0}
 };
 
