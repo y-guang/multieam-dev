@@ -162,6 +162,11 @@ List accumulate_evidence_ddm_naive_with_custom_noise(
   int n_recalled = 0;
   double t = 0.0;
   
+  // Noise batching variables for performance
+  NumericVector noise_batch;
+  int noise_batch_index = 0;
+  int noise_batch_size = 0;
+  
   // Main simulation loop
   while (n_recalled < max_reached && t <= max_t) {
     int recall_idx = n_recalled;
@@ -169,20 +174,37 @@ List accumulate_evidence_ddm_naive_with_custom_noise(
     
     t += dt;
     
-    // Generate noise using the custom noise function
-    // Pass n_items and dt as arguments to the noise function
-    NumericVector noise;
-    try {
-      SEXP noise_result = noise_func(n_items, dt);
-      noise = as<NumericVector>(noise_result);
-      
-      // Validate that the noise function returned the correct number of values
-      if (noise.size() != n_items) {
-        stop("Custom noise function must return a vector of length n_items");
+    // Generate noise using the custom noise function with batching for performance
+    // Check if we need to get a new batch of noise values
+    if (noise_batch_index + n_items > noise_batch_size) {
+      // Calculate mean of V_local
+      double mean_V = 0.0;
+      for (int i = 0; i < n_items; i++) {
+        mean_V += V_local[i];
       }
-    } catch (const std::exception& e) {
-      stop("Error calling custom noise function: " + std::string(e.what()));
+      mean_V /= n_items;
+      
+      // Calculate clipped number of noise values: clip(n_items, A_current/mean_V, 10000*n_items)
+      double ratio = A_current / mean_V;
+      int noise_count = static_cast<int>(std::max(static_cast<double>(n_items), 
+                                        std::min(ratio, static_cast<double>(10000 * n_items))));
+      
+      try {
+        SEXP noise_result = noise_func(noise_count, dt);
+        noise_batch = as<NumericVector>(noise_result);
+        noise_batch_size = noise_batch.size();
+        noise_batch_index = 0;
+      } catch (const std::exception& e) {
+        stop("Error calling custom noise function: " + std::string(e.what()));
+      }
     }
+    
+    // Extract n_items noise values from the current batch
+    NumericVector noise(n_items);
+    for (int i = 0; i < n_items; i++) {
+      noise[i] = noise_batch[noise_batch_index + i];
+    }
+    noise_batch_index += n_items;
     
     // Update evidence based on noise mechanism using STL containers
     if (noise_mechanism == "add") {
@@ -192,7 +214,7 @@ List accumulate_evidence_ddm_naive_with_custom_noise(
     } else if (noise_mechanism == "mult") {
       for (int i = 0; i < n_items; i++) {
         evidence[i] = evidence[i] * (1.0 + noise[i]) + V_local[i] * dt;
-      }
+      } 
     } else {
       stop("noise_mechanism must be 'add' or 'mult'");
     }
