@@ -1,8 +1,13 @@
-# Benchmark function for accumulate_evidence_ddm_naive
+# Benchmark function for accumulate_evidence_ddm_naive vs run_steps
 # Tests three conditions: early end, mid range, and max_t reach
 
-benchmark_ddm <- function(n_runs = 100) {
+benchmark_ddm <- function(n_runs = 100, compare_with_r = TRUE) {
   library(microbenchmark)
+  
+  # Source the R implementation
+  if (compare_with_r) {
+    source("R/hello.R")
+  }
   
   # Fixed parameters
   A_fixed <- 10
@@ -33,16 +38,17 @@ benchmark_ddm <- function(n_runs = 100) {
   cat("- max_t (max time):", max_t, "\n")
   cat("- max_reached:", max_reached, "\n")
   cat("- n_items:", n_items, "\n")
-  cat("- n_runs:", n_runs, "\n\n")
+  cat("- n_runs:", n_runs, "\n")
+  cat("- Compare with R:", compare_with_r, "\n\n")
   
   cat("Conditions:\n")
   cat("1. Early end: V =", V_early[1], "(high drift)\n")
   cat("2. Mid range: V =", V_mid[1], "(medium drift)\n")
   cat("3. Max_t reach: V =", V_max[1], "(very low drift)\n\n")
   
-  # Benchmark function
-  benchmark_results <- microbenchmark(
-    early_end = {
+  # Create benchmark expressions list
+  benchmark_exprs <- list(
+    cpp_early_end = quote({
       accumulate_evidence_ddm_naive(
         A = A_early,
         V = V_early,
@@ -52,9 +58,9 @@ benchmark_ddm <- function(n_runs = 100) {
         max_t = max_t,
         noise_mechanism = noise_mechanism
       )
-    },
+    }),
     
-    mid_range = {
+    cpp_mid_range = quote({
       accumulate_evidence_ddm_naive(
         A = A_mid,
         V = V_mid,
@@ -64,9 +70,9 @@ benchmark_ddm <- function(n_runs = 100) {
         max_t = max_t,
         noise_mechanism = noise_mechanism
       )
-    },
+    }),
     
-    max_t_reach = {
+    cpp_max_t_reach = quote({
       accumulate_evidence_ddm_naive(
         A = A_max,
         V = V_max,
@@ -76,11 +82,53 @@ benchmark_ddm <- function(n_runs = 100) {
         max_t = max_t,
         noise_mechanism = noise_mechanism
       )
-    },
-    
-    times = n_runs,
-    unit = "ms"
+    })
   )
+  
+  # Add R implementations if requested
+  if (compare_with_r) {
+    r_exprs <- list(
+      r_early_end = quote({
+        run_steps(
+          A = A_early,
+          V = V_early,
+          ndt = ndt,
+          dt = dt,
+          max_reached = max_reached,
+          max_t = max_t,
+          noise_mechanism = noise_mechanism
+        )
+      }),
+      
+      r_mid_range = quote({
+        run_steps(
+          A = A_mid,
+          V = V_mid,
+          ndt = ndt,
+          dt = dt,
+          max_reached = max_reached,
+          max_t = max_t,
+          noise_mechanism = noise_mechanism
+        )
+      }),
+      
+      r_max_t_reach = quote({
+        run_steps(
+          A = A_max,
+          V = V_max,
+          ndt = ndt,
+          dt = dt,
+          max_reached = max_reached,
+          max_t = max_t,
+          noise_mechanism = noise_mechanism
+        )
+      })
+    )
+    benchmark_exprs <- c(benchmark_exprs, r_exprs)
+  }
+  
+  # Run benchmark
+  benchmark_results <- do.call(microbenchmark, c(benchmark_exprs, list(times = n_runs, unit = "ms")))
   
   # Print results
   print(benchmark_results)
@@ -94,30 +142,113 @@ benchmark_ddm <- function(n_runs = 100) {
   cat("\nTesting each condition (single run):\n")
   
   set.seed(123)
-  result_early <- accumulate_evidence_ddm_naive(A_early, V_early, ndt, dt, max_reached, max_t, noise_mechanism)
-  cat("Early end - Items recalled:", length(result_early$words), ", Max RT:", max(result_early$rts), "\n")
+  result_cpp_early <- accumulate_evidence_ddm_naive(A_early, V_early, ndt, dt, max_reached, max_t, noise_mechanism)
+  cat("C++ Early end - Items recalled:", length(result_cpp_early$words), ", Max RT:", max(result_cpp_early$rts), "\n")
   
   set.seed(123)
-  result_mid <- accumulate_evidence_ddm_naive(A_mid, V_mid, ndt, dt, max_reached, max_t, noise_mechanism)
-  cat("Mid range - Items recalled:", length(result_mid$words), ", Max RT:", max(result_mid$rts), "\n")
+  result_cpp_mid <- accumulate_evidence_ddm_naive(A_mid, V_mid, ndt, dt, max_reached, max_t, noise_mechanism)
+  cat("C++ Mid range - Items recalled:", length(result_cpp_mid$words), ", Max RT:", max(result_cpp_mid$rts), "\n")
   
   set.seed(123)
-  result_max <- accumulate_evidence_ddm_naive(A_max, V_max, ndt, dt, max_reached, max_t, noise_mechanism)
-  cat("Max_t reach - Items recalled:", length(result_max$words), ", Max RT:", max(result_max$rts), "\n")
+  result_cpp_max <- accumulate_evidence_ddm_naive(A_max, V_max, ndt, dt, max_reached, max_t, noise_mechanism)
+  cat("C++ Max_t reach - Items recalled:", length(result_cpp_max$words), ", Max RT:", max(result_cpp_max$rts), "\n")
+  
+  test_results <- list(
+    cpp_early = result_cpp_early,
+    cpp_mid = result_cpp_mid,
+    cpp_max_t = result_cpp_max
+  )
+  
+  if (compare_with_r) {
+    cat("\nR Implementation Results:\n")
+    set.seed(123)
+    result_r_early <- run_steps(A_early, V_early, ndt, dt, max_reached, max_t, noise_mechanism)
+    cat("R Early end - Items recalled:", length(result_r_early$words), ", Max RT:", max(result_r_early$rts), "\n")
+    
+    set.seed(123)
+    result_r_mid <- run_steps(A_mid, V_mid, ndt, dt, max_reached, max_t, noise_mechanism)
+    cat("R Mid range - Items recalled:", length(result_r_mid$words), ", Max RT:", max(result_r_mid$rts), "\n")
+    
+    set.seed(123)
+    result_r_max <- run_steps(A_max, V_max, ndt, dt, max_reached, max_t, noise_mechanism)
+    cat("R Max_t reach - Items recalled:", length(result_r_max$words), ", Max RT:", max(result_r_max$rts), "\n")
+    
+    test_results <- c(test_results, list(
+      r_early = result_r_early,
+      r_mid = result_r_mid,
+      r_max_t = result_r_max
+    ))
+  }
   
   return(list(
     benchmark = benchmark_results,
     summary = summary_stats,
-    test_results = list(
-      early = result_early,
-      mid = result_mid,
-      max_t = result_max
-    )
+    test_results = test_results
   ))
 }
 
 # Function to run a quick test
-quick_test_ddm <- function() {
+quick_test_ddm <- function(compare_with_r = TRUE) {
   cat("Quick test of DDM conditions:\n")
-  benchmark_ddm(n_runs = 10)
+  benchmark_ddm(n_runs = 10, compare_with_r = compare_with_r)
+}
+
+# Function to compare only specific implementations
+benchmark_cpp_only <- function(n_runs = 100) {
+  cat("C++ only benchmark:\n")
+  benchmark_ddm(n_runs = n_runs, compare_with_r = FALSE)
+}
+
+# Function to analyze performance differences
+analyze_performance <- function(benchmark_result) {
+  if (!"benchmark" %in% names(benchmark_result)) {
+    stop("Invalid benchmark result")
+  }
+  
+  results <- benchmark_result$benchmark
+  
+  # Extract median times by implementation and condition
+  median_times <- tapply(results$time, results$expr, median)
+  
+  cat("\n=== PERFORMANCE ANALYSIS ===\n")
+  cat("Median execution times (nanoseconds):\n")
+  print(median_times)
+  
+  # Separate C++ and R results if both exist
+  cpp_results <- median_times[grep("^cpp_", names(median_times))]
+  r_results <- median_times[grep("^r_", names(median_times))]
+  
+  if (length(cpp_results) > 0 && length(r_results) > 0) {
+    cat("\n=== C++ vs R COMPARISON ===\n")
+    
+    # Match conditions
+    conditions <- c("early_end", "mid_range", "max_t_reach")
+    for (cond in conditions) {
+      cpp_time <- median_times[paste0("cpp_", cond)]
+      r_time <- median_times[paste0("r_", cond)]
+      
+      if (!is.na(cpp_time) && !is.na(r_time)) {
+        speedup <- r_time / cpp_time
+        cat(sprintf("%s: C++ is %.1fx faster than R\n", cond, speedup))
+      }
+    }
+    
+    overall_cpp <- mean(cpp_results)
+    overall_r <- mean(r_results)
+    overall_speedup <- overall_r / overall_cpp
+    cat(sprintf("\nOverall: C++ is %.1fx faster than R on average\n", overall_speedup))
+  }
+  
+  cat("\n=== CONDITION COMPARISON ===\n")
+  if (length(cpp_results) > 0) {
+    cat("C++ relative performance (vs fastest condition):\n")
+    cpp_relative <- cpp_results / min(cpp_results)
+    print(round(cpp_relative, 2))
+  }
+  
+  if (length(r_results) > 0) {
+    cat("R relative performance (vs fastest condition):\n")
+    r_relative <- r_results / min(r_results)
+    print(round(r_relative, 2))
+  }
 }

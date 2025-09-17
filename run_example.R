@@ -19,12 +19,12 @@ Rcpp::sourceCpp("src/core.cpp")
 cat("Step 3: Loading benchmark functions...\n")
 source("R/benchmark.R")
 
-# Step 5: Run the benchmark
-cat("Step 4: Running benchmark...\n\n")
+# Step 5: Run the benchmark comparing C++ vs R
+cat("Step 4: Running benchmark with C++ vs R comparison...\n\n")
 
 # Quick test with fewer iterations
-cat("=== QUICK BENCHMARK (10 runs) ===\n")
-results <- benchmark_ddm(n_runs = 10)
+cat("=== QUICK BENCHMARK (10 runs) - C++ vs R ===\n")
+results <- benchmark_ddm(n_runs = 10, compare_with_r = TRUE)
 
 cat("\n=== BENCHMARK ANALYSIS ===\n")
 cat("The three conditions test different performance scenarios:\n")
@@ -35,13 +35,8 @@ cat("3. Max_t reach (V=1e-8): Very low drift, hits time limit\n\n")
 cat("Expected performance pattern:\n")
 cat("- Early end: Fastest (fewer iterations needed)\n")
 cat("- Mid range: Medium speed\n")
-cat("- Max_t reach: Slowest (full simulation time)\n\n")
+cat("- Max_t reach: Slowest (full simulation time)\n")
+cat("- C++ should outperform R significantly\n\n")
 
-# Show timing comparison
-median_times <- tapply(results$benchmark$time, results$benchmark$expr, median)
-cat("Median execution times (nanoseconds):\n")
-print(median_times)
-
-cat("\nRelative performance (vs fastest):\n")
-relative_times <- median_times / min(median_times)
-print(round(relative_times, 2))
+# Detailed performance analysis
+analyze_performance(results)
