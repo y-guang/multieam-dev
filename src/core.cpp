@@ -298,6 +298,19 @@ List accumulate_evidence_ddm_opt(
     stop("noise_func parameter is required and cannot be NULL");
   }
 
+  // Define noise mechanism enum
+  enum NoiseType { ADDITIVE, MULTIPLICATIVE };
+  
+  // Validate noise mechanism and set type
+  NoiseType noise_type;
+  if (noise_mechanism == "add") {
+    noise_type = ADDITIVE;
+  } else if (noise_mechanism == "mult") {
+    noise_type = MULTIPLICATIVE;
+  } else {
+    stop("noise_mechanism must be 'add' or 'mult'");
+  }
+
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
   std::vector<double> V_local(n_items);
   for (int i = 0; i < n_items; i++) {
@@ -391,14 +404,15 @@ List accumulate_evidence_ddm_opt(
     for (size_t i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
-      if (noise_mechanism == "add") {
-        evidence[i] = evidence[i] + V_local[item_idx[i]] * dt + noise;
-      }
-      else if (noise_mechanism == "mult") {
-        evidence[i] = evidence[i] * (1.0 + noise) + V_local[item_idx[i]] * dt;
-      }
-      else {
-        stop("noise_mechanism must be 'add' or 'mult'");
+      switch (noise_type) {
+        case ADDITIVE:
+          evidence[i] = evidence[i] + V_local[item_idx[i]] * dt + noise;
+          break;
+        case MULTIPLICATIVE:
+          evidence[i] = evidence[i] * (1.0 + noise) + V_local[item_idx[i]] * dt;
+          break;
+        default:
+          stop("Unknown noise type");
       }
     }
     noise_batch_index += evidence.size();

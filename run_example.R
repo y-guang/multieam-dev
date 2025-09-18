@@ -32,10 +32,10 @@ simple_noise <- function(n, dt = 0.01) {
 
 # Run comprehensive benchmark
 results <- benchmark_all_comprehensive(
-  n_items = 10, 
+  n_items = 20, 
   n_timesteps = 300, 
   custom_noise_func = simple_noise,
-  times = 10
+  times = 50
 )
 
 cat("\n=== BENCHMARK ANALYSIS ===\n")
