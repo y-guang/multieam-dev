@@ -76,9 +76,9 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 #' @param trial_setting A list of named values representing the trial settings
 #' @param item_formulas A list of formulas defining the item parameters
 #' @param n_items The number of items to simulate
-#' @param dt The step size for each increment
 #' @param max_reached The threshold for evidence accumulation
 #' @param max_t The maximum time to simulate
+#' @param dt The step size for each increment
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult")
 #' @param noise_factory A function that takes trial_setting and returns a noise
 #' function with signature function(n, dt)
@@ -93,8 +93,8 @@ run_trial <- function(
     item_formulas,
     n_items,
     max_reached,
-    dt,
     max_t,
+    dt,
     noise_mechanism,
     noise_factory,
     trajectories = FALSE) {
@@ -110,9 +110,9 @@ run_trial <- function(
     item_params$A,
     item_params$V,
     item_params$ndt,
+    max_t,
     dt,
     max_reached,
-    max_t,
     noise_mechanism,
     noise_fun
   )

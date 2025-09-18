@@ -7,8 +7,8 @@ List accumulate_evidence_ddm(
   NumericVector A,
   NumericVector V,
   NumericVector ndt,
-  double dt,
   double max_t,
+  double dt,
   int max_reached,
   String noise_mechanism = "add",
   Function noise_func = R_NilValue
