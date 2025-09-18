@@ -8,8 +8,8 @@ List accumulate_evidence_ddm(
   NumericVector V,
   NumericVector ndt,
   double dt,
-  int max_reached,
   double max_t,
+  int max_reached,
   String noise_mechanism = "add",
   Function noise_func = R_NilValue
 ) {
@@ -19,7 +19,7 @@ List accumulate_evidence_ddm(
   
   // Input validation
   if (A.size() > n_items || A.size() < max_reached) {
-    stop("Length of A must be <= number of items and >= max_reached");
+    stop("Length of A must be <= number of items and >= max_reached. Got: A.size()=" + std::to_string(A.size()) + ", n_items=" + std::to_string(n_items) + ", max_reached=" + std::to_string(max_reached));
   }
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");

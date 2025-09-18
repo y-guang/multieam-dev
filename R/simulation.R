@@ -75,13 +75,14 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 #' item formulas and trial settings. It's a wrapper around the core C++ function
 #' @param trial_setting A list of named values representing the trial settings
 #' @param item_formulas A list of formulas defining the item parameters
-#' @param n_item The number of items to simulate
+#' @param n_items The number of items to simulate
 #' @param dt The step size for each increment
 #' @param max_reached The threshold for evidence accumulation
 #' @param max_t The maximum time to simulate
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult")
 #' @param noise_factory A function that takes trial_setting and returns a noise
 #' function with signature function(n, dt)
+#' @param trajectories Whether to return full output including trajectories.
 #' @return A list containing the simulation results
 #' @note After evaluation, parameters A, V, and ndt are expected to be
 #' numeric vectors of length n_item. And they are matched by position. So,
@@ -90,17 +91,18 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 run_trial <- function(
     trial_setting,
     item_formulas,
-    n_item,
-    dt,
+    n_items,
     max_reached,
+    dt,
     max_t,
     noise_mechanism,
-    noise_factory) {
+    noise_factory,
+    trajectories = FALSE) {
   # prepare
   item_params <- evaluate_with_dt(
     item_formulas,
     data = trial_setting,
-    n = n_item
+    n = n_items
   )
   noise_fun <- noise_factory(trial_setting)
 
@@ -109,11 +111,15 @@ run_trial <- function(
     item_params$V,
     item_params$ndt,
     dt,
-    max_t,
     max_reached,
+    max_t,
     noise_mechanism,
     noise_fun
   )
+
+  if (trajectories) {
+    sim_result$.item_params <- item_params
+  }
 
   sim_result
 }
