@@ -1,19 +1,11 @@
-# Hello, world!
-#
-# This is an example function named 'hello'
-# which prints 'Hello, world!'.
-#
-# You can learn more about package authoring with RStudio at:
-#
-#   https://r-pkgs.org
-#
-# Some useful keyboard shortcuts for package authoring:
-#
-#   Install Package:           'Ctrl + Shift + B'
-#   Check Package:             'Ctrl + Shift + E'
-#   Test Package:              'Ctrl + Shift + T'
-
-
+#' Helper to resolved defined symbols in our formulas
+#'
+#' This function evaluates an expression in a given environment.
+#' @param expr An expression to evaluate
+#' @param env An environment to evaluate the expression in
+#' @param n The number of values to generate if the expression is a distribution
+#' @return The evaluated value as it is, no assumption on its type
+#' @keywords internal
 resolve_symbol <- function(expr, env, n) {
   # evaluate expression once in the given environment
   val <- eval(expr, env = env)
@@ -27,6 +19,15 @@ resolve_symbol <- function(expr, env, n) {
 }
 
 
+#' Evaluate a list of formulas sequentially with data
+#'
+#' This function evaluates a list of formulas sequentially, allowing later
+#' formulas to reference
+#' @param formulas A list of formulas to evaluate
+#' @param data A list of named values to use as the initial environment
+#' @param n The number of values to generate for each formula
+#' @return A named list of evaluated values with length n
+#' @keywords internal
 evaluate_with_dt <- function(formulas, data = list(), n) {
   # validate data
   if (!is.list(data)) {
@@ -68,7 +69,23 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
   return(res_list)
 }
 
-
+#' Run a single trial of the DDM simulation
+#'
+#' This function runs a single trial of the DDM simulation using the provided
+#' item formulas and trial settings.
+#' @param trial_setting A list of named values representing the trial settings
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_item The number of items to simulate
+#' @param dt The step size for each increment
+#' @param max_reached The threshold for evidence accumulation
+#' @param max_t The maximum time to simulate
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult")
+#' @param noise_factory A function that takes trial_setting and returns a noise
+#' function with signature function(n, dt)
+#' @return A list containing the simulation results
+#' @note After evaluation, parameters A, V, and ndt are expected to be
+#' numeric vectors of length n_item. And they are matched by position. So,
+#' the first element of A, V, and ndt corresponds to the first item, and so on.
 run_trial <- function(
     trial_setting,
     item_formulas,
