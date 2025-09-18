@@ -211,7 +211,9 @@ run_condition <- function(
     }
   )
 
-  cond_res$.cond_params <- cond_params
-
-  cond_res
+  # Return a list containing both results and condition parameters
+  return(list(
+    result = cond_res,
+    cond_params = cond_params
+  ))
 }
