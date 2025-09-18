@@ -1,6 +1,6 @@
 # Example: How to compile and run the DDM benchmark
-# 
-# This script demonstrates the complete workflow for testing the 
+#
+# This script demonstrates the complete workflow for testing the
 # accumulate_evidence_ddm_naive function performance
 
 # Step 1: Compile the Rcpp functions
@@ -32,16 +32,16 @@ simple_noise <- function(n, dt = 0.01) {
 
 # Run comprehensive benchmark
 results <- benchmark_all_comprehensive(
-  n_items = 20, 
-  n_timesteps = 300, 
+  n_items = 20,
+  n_timesteps = 300,
   custom_noise_func = simple_noise,
-  times = 50
+  times = 60
 )
 
 cat("\n=== BENCHMARK ANALYSIS ===\n")
 cat("Testing all five implementations:\n")
 cat("1. C++ Standard: Basic optimized C++ implementation\n")
-cat("2. C++ Custom Noise: C++ with user-defined noise function\n") 
+cat("2. C++ Custom Noise: C++ with user-defined noise function\n")
 cat("3. C++ Optimized: Advanced C++ with dynamic item removal\n")
 cat("4. R Standard: Reference R implementation\n")
 cat("5. R Custom Noise: R implementation with custom noise\n\n")
@@ -80,7 +80,7 @@ standard_noise <- function(n, dt) {
 }
 
 cat("Testing C++ Custom Noise (equivalent to standard):\n")
-set.seed(123)  
+set.seed(123)
 result_custom_standard <- accumulate_evidence_ddm_naive_with_custom_noise(A, V, ndt, dt, max_reached, max_t, noise_mechanism, standard_noise)
 cat("Items recalled:", length(result_custom_standard$words), "RTs:", round(result_custom_standard$rts[1:3], 3), "\n")
 cat("RTs match standard:", all.equal(result_standard$rts, result_custom_standard$rts), "\n\n")
@@ -124,7 +124,7 @@ cat("R Scaled noise - Items recalled:", length(result_scaled_r$words), "\n")
 cat("C++ vs R scaled results match:", all.equal(result_scaled_cpp$rts, result_scaled_r$rts), "\n")
 cat("C++ Average RT difference vs standard:", round(mean(result_scaled_cpp$rts) - mean(result_standard$rts), 3), "\n\n")
 
-# Test with uniform noise  
+# Test with uniform noise
 cat("Testing with uniform noise:\n")
 set.seed(123)
 result_uniform_cpp <- accumulate_evidence_ddm_naive_with_custom_noise(A, V, ndt, dt, max_reached, max_t, noise_mechanism, uniform_noise)

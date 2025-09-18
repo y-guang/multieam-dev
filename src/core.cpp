@@ -289,6 +289,9 @@ List accumulate_evidence_ddm_opt(
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");
   }
+  if (ndt.size() != n_items) {
+    stop("Length of ndt must be equal to number of items");
+  }
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
   }
@@ -313,7 +316,7 @@ List accumulate_evidence_ddm_opt(
 
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
   std::vector<double> V_local(n_items);
-  for (int i = 0; i < n_items; i++) {
+  for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
     V_local[i] = (V[i] < 0) ? 1e-8 : V[i];
   }
 
@@ -322,7 +325,7 @@ List accumulate_evidence_ddm_opt(
   std::vector<int> item_idx(n_items);
   std::iota(item_idx.begin(), item_idx.end(), 0);
   std::vector<double> passed_t(n_items);
-  for (int i = 0; i < n_items; i++) {
+  for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
     passed_t[i] = ndt[i];
   }
   int n_recalled = 0;
@@ -337,10 +340,10 @@ List accumulate_evidence_ddm_opt(
 
   // Noise batching
   NumericVector noise_batch;
-  int noise_batch_index = 0;
+  size_t noise_batch_index = 0;
   double heuristic_steps = max_t / dt / 10;
-  int noise_batch_X = static_cast<int>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
-  int noise_batch_size = noise_batch_X * n_items;
+  size_t noise_batch_X = static_cast<size_t>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
+  size_t noise_batch_size = noise_batch_X * n_items;
   noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
 
   do
