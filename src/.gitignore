@@ -1,3 +1,4 @@
 *.o
 *.dll
 RcppExports.R
+RcppExports.cpp

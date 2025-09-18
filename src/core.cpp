@@ -107,6 +107,10 @@ List accumulate_evidence_ddm_opt(
       } catch (const std::exception& e) {
         stop("Error calling custom noise function: " + std::string(e.what()));
       }
+      // size validation
+      if (static_cast<size_t>(noise_batch.size()) != noise_batch_size) {
+        stop("Custom noise function signature: function(n, dt) where n is the number of noise values needed and dt is the time step.");
+      }
     }
 
     // check evidence reached threshold
