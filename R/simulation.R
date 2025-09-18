@@ -167,7 +167,7 @@ run_trial <- function(
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt)
 #' @param trajectories Whether to return full output including trajectories.
-#' @return A list of trial results, each containing the simulation results
+#' @return A list containing the simulation results and condition parameters
 #' @keywords internal
 run_condition <- function(
     condition_setting,
