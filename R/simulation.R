@@ -221,10 +221,10 @@ run_condition <- function(
 
 #' Run a full simulation across multiple conditions (serial version)
 #'
-#' This function runs a complete simulation across multiple conditions serially, 
-#' with each condition having multiple trials and items. It uses the hierarchical
-#' structure: prior -> condition -> trial -> item. All parameters must be 
-#' explicitly specified.
+#' This function runs a complete simulation across multiple conditions serially,
+#' with each condition having multiple trials and items. It uses the
+#' hierarchical structure: prior -> condition -> trial -> item. All parameters
+#' must be explicitly specified.
 #' @param prior_formulas A list of formulas defining the prior parameters
 #' for conditions
 #' @param between_trial_formulas A list of formulas defining the between-trial
@@ -364,7 +364,6 @@ run_simulation <- function(
     parallel = FALSE,
     chunk = NULL,
     n_cores = NULL) {
-  
   if (parallel) {
     run_simulation_parallel(
       prior_formulas = prior_formulas,
@@ -567,5 +566,3 @@ run_simulation_parallel <- function(
   # Return the combined results
   return(sim_results)
 }
-
-
