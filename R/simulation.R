@@ -217,3 +217,100 @@ run_condition <- function(
     cond_params = cond_params
   ))
 }
+
+
+#' Run a full simulation across multiple conditions
+#'
+#' This function runs a complete simulation across multiple conditions, with
+#' each condition having multiple trials and items. It uses the hierarchical
+#' structure: prior -> condition -> trial -> item.
+#' @param prior_formulas A list of formulas defining the prior parameters
+#' for conditions
+#' @param between_trial_formulas A list of formulas defining the between-trial
+#' parameters
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_condition The number of conditions to simulate
+#' @param n_trial_per_condition The number of trials per condition
+#' @param n_item The number of items per trial
+#' @param max_reached The threshold for evidence accumulation (default: n_item)
+#' @param max_t The maximum time to simulate (default: 100)
+#' @param dt The step size for each increment (default: 0.01)
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
+#'  "add")
+#' @param noise_factory A function that takes condition_setting and returns a
+#' noise function with signature function(n, dt). Default returns zero noise.
+#' @param trajectories Whether to return full output including trajectories
+#' (default: FALSE)
+#' @return A list containing the simulation results for all conditions
+#' @export
+run_simulation <- function(
+    prior_formulas,
+    between_trial_formulas = list(),
+    item_formulas = list(),
+    n_condition,
+    n_trial_per_condition,
+    n_item,
+    max_reached = n_item,
+    max_t = 100,
+    dt = 0.01,
+    noise_mechanism = "add",
+    noise_factory = function(condition_setting) {
+      function(n, dt) rep(0, n)
+    },
+    trajectories = FALSE) {
+  # validate inputs
+  if (!is.list(prior_formulas)) {
+    stop("prior_formulas must be a list of formulas")
+  }
+  if (!is.list(between_trial_formulas)) {
+    stop("between_trial_formulas must be a list of formulas")
+  }
+  if (!is.list(item_formulas)) {
+    stop("item_formulas must be a list of formulas")
+  }
+  if (n_condition < 1) {
+    stop("n_condition must be at least 1")
+  }
+  if (n_trial_per_condition < 1) {
+    stop("n_trial_per_condition must be at least 1")
+  }
+  if (n_item < 1) {
+    stop("n_item must be at least 1")
+  }
+
+  # generate condition parameters from prior formulas
+  prior_params <- evaluate_with_dt(
+    formulas = prior_formulas,
+    data = list(),
+    n = n_condition
+  )
+
+  # create condition settings list
+  condition_params_list <- vector("list", n_condition)
+  for (i in seq_len(n_condition)) {
+    condition_params_list[[i]] <- lapply(prior_params, function(x) x[i])
+  }
+
+  # run each condition
+  sim_results <- lapply(
+    condition_params_list,
+    function(condition_setting) {
+      run_condition(
+        condition_setting = condition_setting,
+        between_trial_formulas = between_trial_formulas,
+        item_formulas = item_formulas,
+        n_trials = n_trial_per_condition,
+        n_items = n_item,
+        max_reached = max_reached,
+        max_t = max_t,
+        dt = dt,
+        noise_mechanism = noise_mechanism,
+        noise_factory = noise_factory,
+        trajectories = trajectories
+      )
+    }
+  )
+
+  # Return a list containing both results and prior parameters
+  return(sim_results)
+}
