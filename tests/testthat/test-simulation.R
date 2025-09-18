@@ -1,56 +1,88 @@
 # test evaluate_with_dt
 test_that("evaluate_with_dt works with numeric", {
-  test_formula <- list(
+  test_formulas <- list(
     a ~ 5
   )
-  result <- multieam:::evaluate_with_dt(test_formula, data = list(), n = 1)
+  result <- multieam:::evaluate_with_dt(test_formulas, data = list(), n = 1)
   expect_equal(result$a, 5)
 })
 
 test_that("evaluate_with_dt works with numeric vec", {
-  test_formula <- list(
+  test_formulas <- list(
     a ~ 5
   )
-  result <- multieam:::evaluate_with_dt(test_formula, data = list(), n = 7)
+  result <- multieam:::evaluate_with_dt(test_formulas, data = list(), n = 7)
   expect_equal(length(result$a), 7)
   expect_true(all(result$a == 5))
 })
 
 test_that("evaluate_with_dt works with chain", {
-  test_formula <- list(
+  test_formulas <- list(
     a ~ 1,
     b ~ a + 2
   )
-  result <- multieam:::evaluate_with_dt(test_formula, data = list(), n = 1)
+  result <- multieam:::evaluate_with_dt(test_formulas, data = list(), n = 1)
   expect_equal(result$a, 1)
   expect_equal(result$b, 3)
 })
 
-# test_that("run_trial with simple parameters", {
-#   n_items <- 5
-#   trial_formula <- list(
-#     A ~ 1,
-#     V ~ 1,
-#     ndt ~ 0.3
-#   )
+test_that("run_trial with simple parameters", {
+  n_items <- 5
+  trial_formulas <- list(
+    A ~ 1,
+    V ~ 1,
+    ndt ~ 0.01
+  )
 
-#   res <- run_trial(
-#     trial_setting = list(),
-#     item_formulas = trial_formula,
-#     n_item = n_items,
-#     dt = 0.01,
-#     max_reached = n_items,
-#     max_t = 10,
-#     noise_mechanism = "add",
-#     noise_factory = function(trial_setting) {
-#       function(n, dt) {
-#         rnorm(n, 0, 0)
-#       }
-#     },
-#     trajectories = TRUE
-#   )
+  res <- multieam:::run_trial(
+    trial_setting = list(),
+    item_formulas = trial_formulas,
+    n_items = n_items,
+    max_reached = n_items,
+    max_t = 10,
+    dt = 0.01,
+    noise_mechanism = "add",
+    noise_factory = function(trial_setting) {
+      function(n, dt) {
+        rnorm(n, 0, 0)
+      }
+    },
+    trajectories = TRUE
+  )
 
-#   expect_equal(length(res$rt), n_items)
-#   expect_equal(length(res$response), n_items)
-#   expect_equal(nrow(res$.item_params), n_items)
-# })
+  expect_equal(length(res$rt), n_items)
+  expect_equal(length(res$item_idx), n_items)
+  expect_equal(length(res$.item_params$A), n_items)
+  expect_equal(length(res$.item_params$V), n_items)
+})
+
+test_that("run_trial with varying parameters", {
+  n_items <- 5
+  trial_formulas <- list(
+    n_items ~ 5,
+    A ~ seq(n_items),
+    V ~ 1,
+    ndt ~ distributional::dist_uniform(-1e-5, 1e-5)
+  )
+
+  res <- multieam:::run_trial(
+    trial_setting = list(),
+    item_formulas = trial_formulas,
+    n_items = n_items,
+    max_reached = n_items,
+    max_t = 10,
+    dt = 0.01,
+    noise_mechanism = "add",
+    noise_factory = function(trial_setting) {
+      function(n, dt) {
+        rnorm(n, 0, sqrt(dt) * 0.1)
+      }
+    },
+    trajectories = TRUE
+  )
+
+  expect_equal(length(res$rt), n_items)
+  expect_equal(length(res$item_idx), n_items)
+  expect_equal(length(res$.item_params$A), n_items)
+  expect_true(all(sapply(res$.item_params, length) == n_items))
+})

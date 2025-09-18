@@ -85,7 +85,7 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 #' @param trajectories Whether to return full output including trajectories.
 #' @return A list containing the simulation results
 #' @note After evaluation, parameters A, V, and ndt are expected to be
-#' numeric vectors of length n_item. And they are matched by position. So,
+#' numeric vectors of length n_items. And they are matched by position. So,
 #' the first element of A, V, and ndt corresponds to the first item, and so on.
 #' @keywords internal
 run_trial <- function(
@@ -123,5 +123,3 @@ run_trial <- function(
 
   sim_result
 }
-
-

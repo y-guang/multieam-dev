@@ -30,3 +30,19 @@ evaluate_with_dt(prior_formulas, n = 10)
 # )
 # sim_result
 
+
+res <- run_trial(
+  trial_setting = list(),
+  item_formulas = trial_formulas,
+  n_items = n_items,
+  max_reached = n_items,
+  max_t = 10,
+  dt = 0.01,
+  noise_mechanism = "add",
+  noise_factory = function(trial_setting) {
+    function(n, dt) {
+      rnorm(n, 0, 0)
+    }
+  },
+  trajectories = TRUE
+)
