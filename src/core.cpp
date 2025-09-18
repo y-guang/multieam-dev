@@ -68,9 +68,9 @@ List accumulate_evidence_ddm_opt(
   int n_undetermined = n_items;
 
   // Pre-allocate result vectors using STL
-  std::vector<int> words;
+  std::vector<int> reached_item_idx;
   std::vector<double> rts;
-  words.reserve(max_reached);
+  reached_item_idx.reserve(max_reached);
   rts.reserve(max_reached);
 
   // Noise batching
@@ -116,7 +116,7 @@ List accumulate_evidence_ddm_opt(
       }
       else {
         int selected_idx = item_idx[i];
-        words.push_back(selected_idx + 1);
+        reached_item_idx.push_back(selected_idx + 1);
         rts.push_back(passed_t[i]);
         n_recalled++;
         n_determined++;
@@ -151,27 +151,25 @@ List accumulate_evidence_ddm_opt(
   // Build output using STL vectors and convert to Rcpp types only at the end
   if (n_recalled > 0) {
     // Create final vectors with exact size needed
-    IntegerVector final_words(n_recalled);
+    IntegerVector output_item_indexes(n_recalled);
     NumericVector final_rts(n_recalled);
     IntegerVector final_pos(n_recalled);
     
     // Copy data from STL vectors to Rcpp vectors
     for (int i = 0; i < n_recalled; i++) {
-      final_words[i] = words[i]; // words are already 1-based
+      output_item_indexes[i] = reached_item_idx[i]; // words are already 1-based
       final_rts[i] = rts[i]; // rts already include ndt in passed_t
       final_pos[i] = i + 1; // Position list (1-based)
     }
     
     return List::create(
-      Named("words") = final_words,
-      Named("rts") = final_rts,
-      Named("pos") = final_pos
+      Named("item_idx") = output_item_indexes,
+      Named("rts") = final_rts
     );
   } else {
     return List::create(
-      Named("words") = IntegerVector(0),
-      Named("rts") = NumericVector(0),
-      Named("pos") = IntegerVector(0)
+      Named("item_idx") = IntegerVector(0),
+      Named("rts") = NumericVector(0)
     );
   }
 }
