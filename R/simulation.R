@@ -314,3 +314,152 @@ run_simulation <- function(
   # Return a list containing both results and prior parameters
   return(sim_results)
 }
+
+
+#' Run a full simulation across multiple conditions in parallel
+#'
+#' This function runs a complete simulation across multiple conditions using
+#' parallel processing. It splits the conditions into chunks and processes
+#' each chunk on separate cores. Each condition has multiple trials and items.
+#' It uses the hierarchical structure: prior -> condition -> trial -> item.
+#' @param prior_formulas A list of formulas defining the prior parameters
+#' for conditions
+#' @param between_trial_formulas A list of formulas defining the between-trial
+#' parameters
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_condition The number of conditions to simulate
+#' @param n_trial_per_condition The number of trials per condition
+#' @param n_item The number of items per trial
+#' @param max_reached The threshold for evidence accumulation (default: n_item)
+#' @param max_t The maximum time to simulate (default: 100)
+#' @param dt The step size for each increment (default: 0.01)
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
+#'  "add")
+#' @param noise_factory A function that takes condition_setting and returns a
+#' noise function with signature function(n, dt). Default returns zero noise.
+#' @param trajectories Whether to return full output including trajectories
+#' (default: FALSE)
+#' @param chunk The size of chunks to split conditions into for parallel
+#' processing (default: ceiling(n_condition / cores))
+#' @param cores The number of cores to use for parallel processing
+#' (default: parallel::detectCores() - 1)
+#' @return A list containing the simulation results for all conditions
+#' @export
+run_simulation_parallel <- function(
+    prior_formulas,
+    between_trial_formulas = list(),
+    item_formulas = list(),
+    n_condition,
+    n_trial_per_condition,
+    n_items,
+    max_reached = n_items,
+    max_t = 100,
+    dt = 0.01,
+    noise_mechanism = "add",
+    noise_factory = function(condition_setting) {
+      function(n, dt) rep(0, n)
+    },
+    trajectories = FALSE,
+    chunk = NULL,
+    n_cores = parallel::detectCores() - 1) {
+  # validate inputs
+  if (!is.list(prior_formulas)) {
+    stop("prior_formulas must be a list of formulas")
+  }
+  if (!is.list(between_trial_formulas)) {
+    stop("between_trial_formulas must be a list of formulas")
+  }
+  if (!is.list(item_formulas)) {
+    stop("item_formulas must be a list of formulas")
+  }
+  if (n_condition < 1) {
+    stop("n_condition must be at least 1")
+  }
+  if (n_trial_per_condition < 1) {
+    stop("n_trial_per_condition must be at least 1")
+  }
+  if (n_items < 1) {
+    stop("n_item must be at least 1")
+  }
+  if (n_cores < 1) {
+    stop("cores must be at least 1")
+  }
+
+  # set default chunk size if not provided
+  if (is.null(chunk)) {
+    chunk <- ceiling(n_condition / n_cores)
+  }
+
+  # generate condition parameters from prior formulas
+  prior_params <- evaluate_with_dt(
+    formulas = prior_formulas,
+    data = list(),
+    n = n_condition
+  )
+
+  # split prior_params into chunks
+  condition_indices <- seq_len(n_condition)
+  chunk_indices <- split(condition_indices, ceiling(condition_indices / chunk))
+
+  # create chunked prior parameters
+  chunked_prior_params <- lapply(chunk_indices, function(indices) {
+    lapply(prior_params, function(param) param[indices])
+  })
+
+  # function to process a single chunk
+  process_chunk <- function(chunk_prior_params) {
+    n_conditions_in_chunk <- length(chunk_prior_params[[1]])
+
+    # create condition settings list for this chunk
+    condition_params_list <- vector("list", n_conditions_in_chunk)
+    for (i in seq_len(n_conditions_in_chunk)) {
+      condition_params_list[[i]] <- lapply(chunk_prior_params, function(x) x[i])
+    }
+
+    # run each condition in this chunk
+    chunk_results <- lapply(
+      condition_params_list,
+      function(condition_setting) {
+        run_condition(
+          condition_setting = condition_setting,
+          between_trial_formulas = between_trial_formulas,
+          item_formulas = item_formulas,
+          n_trials = n_trial_per_condition,
+          n_items = n_items,
+          max_reached = max_reached,
+          max_t = max_t,
+          dt = dt,
+          noise_mechanism = noise_mechanism,
+          noise_factory = noise_factory,
+          trajectories = trajectories
+        )
+      }
+    )
+
+    return(chunk_results)
+  }
+
+  # setup parallel cluster
+  cl <- parallel::makeCluster(min(n_cores, length(chunked_prior_params)))
+  on.exit(parallel::stopCluster(cl))
+
+  # export necessary objects to cluster
+  parallel::clusterExport(cl, c(
+    "run_condition", "run_trial", "evaluate_with_dt",
+    "resolve_symbol", "accumulate_evidence_ddm",
+    "between_trial_formulas", "item_formulas", "n_trial_per_condition",
+    "n_items", "max_reached", "max_t", "dt", "noise_mechanism", 
+    "noise_factory", "trajectories"
+  ),
+  envir = environment()
+  )
+
+  # run parallel processing
+  parallel_results <- parallel::parLapply(cl, chunked_prior_params, process_chunk)
+
+  # combine results from all chunks (ensure unnamed list like serial version)
+  sim_results <- unname(do.call(c, parallel_results))
+
+  # Return the combined results
+  return(sim_results)
+}
