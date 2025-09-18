@@ -66,6 +66,31 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
     res_list[[i]] <- val
   }
 
+  res_list <- modifyList(data, res_list)
+
+  for (i in seq_along(res_list)) {
+    val <- res_list[[i]]
+    len <- length(val)
+    if (len == n) {
+      next
+    } else if (n %% len == 0) {
+      res_list[[i]] <- rep(val, n / len)
+    } else {
+      stop(
+        paste0(
+          "The length of '",
+          names(res_list)[i],
+          "' must be either 1 or a multiple of n (",
+          n,
+          ").",
+          "But got length ",
+          len,
+          "."
+        )
+      )
+    }
+  }
+
   return(res_list)
 }
 
@@ -122,4 +147,71 @@ run_trial <- function(
   }
 
   sim_result
+}
+
+
+#' Run a given condition with multiple trials
+#'
+#' This function runs multiple trials for a given condition using the specified
+#' @param condition_setting A list of named values representing the condition
+#' settings
+#' @param between_trial_formulas A list of formulas defining the between-trial
+#' parameters
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_trials The number of trials to simulate
+#' @param n_items The number of items per trial
+#' @param max_reached The threshold for evidence accumulation
+#' @param max_t The maximum time to simulate
+#' @param dt The step size for each increment
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult")
+#' @param noise_factory A function that takes condition_setting and returns a
+#' noise function with signature function(n, dt)
+#' @param trajectories Whether to return full output including trajectories.
+#' @return A list of trial results, each containing the simulation results
+#' @keywords internal
+run_condition <- function(
+    condition_setting,
+    between_trial_formulas,
+    item_formulas,
+    n_trials,
+    n_items,
+    max_reached,
+    max_t,
+    dt,
+    noise_mechanism,
+    noise_factory,
+    trajectories = FALSE) {
+  # prepare
+  cond_params <- evaluate_with_dt(
+    formulas = between_trial_formulas,
+    data = condition_setting,
+    n = n_trials
+  )
+
+  trial_params_list <- vector("list", n_trials)
+  for (i in seq_len(n_trials)) {
+    trial_params_list[[i]] <- lapply(cond_params, function(x) x[i])
+  }
+
+  # run trials
+  cond_res <- lapply(
+    trial_params_list,
+    function(trial_setting) {
+      run_trial(
+        trial_setting = trial_setting,
+        item_formulas = item_formulas,
+        n_items = n_items,
+        max_reached = max_reached,
+        max_t = max_t,
+        dt = dt,
+        noise_mechanism = noise_mechanism,
+        noise_factory = noise_factory,
+        trajectories = trajectories
+      )
+    }
+  )
+
+  cond_res$.cond_params <- cond_params
+
+  cond_res
 }
