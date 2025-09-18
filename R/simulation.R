@@ -249,8 +249,8 @@ run_simulation <- function(
     item_formulas = list(),
     n_condition,
     n_trial_per_condition,
-    n_item,
-    max_reached = n_item,
+    n_items,
+    max_reached = n_items,
     max_t = 100,
     dt = 0.01,
     noise_mechanism = "add",
@@ -274,7 +274,7 @@ run_simulation <- function(
   if (n_trial_per_condition < 1) {
     stop("n_trial_per_condition must be at least 1")
   }
-  if (n_item < 1) {
+  if (n_items < 1) {
     stop("n_item must be at least 1")
   }
 
@@ -300,7 +300,7 @@ run_simulation <- function(
         between_trial_formulas = between_trial_formulas,
         item_formulas = item_formulas,
         n_trials = n_trial_per_condition,
-        n_items = n_item,
+        n_items = n_items,
         max_reached = max_reached,
         max_t = max_t,
         dt = dt,
