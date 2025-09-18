@@ -448,7 +448,7 @@ run_simulation_parallel <- function(
     "run_condition", "run_trial", "evaluate_with_dt",
     "resolve_symbol", "accumulate_evidence_ddm",
     "between_trial_formulas", "item_formulas", "n_trial_per_condition",
-    "n_items", "max_reached", "max_t", "dt", "noise_mechanism", 
+    "n_items", "max_reached", "max_t", "dt", "noise_mechanism",
     "noise_factory", "trajectories"
   ),
   envir = environment()
@@ -456,10 +456,18 @@ run_simulation_parallel <- function(
 
   # run parallel processing with progress bar
   if (requireNamespace("pbapply", quietly = TRUE)) {
-    parallel_results <- pbapply::pblapply(chunked_prior_params, process_chunk, cl = cl)
+    parallel_results <- pbapply::pblapply(
+      chunked_prior_params,
+      process_chunk,
+      cl = cl
+    )
   } else {
     message("Install 'pbapply' package for progress bar support")
-    parallel_results <- parallel::parLapply(cl, chunked_prior_params, process_chunk)
+    parallel_results <- parallel::parLapply(
+      cl,
+      chunked_prior_params,
+      process_chunk
+    )
   }
 
   # combine results from all chunks (ensure unnamed list like serial version)
