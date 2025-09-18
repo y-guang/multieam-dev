@@ -9,6 +9,8 @@ Authors@R: c(
       role = c("aut", "cre")
     )
   )
+LinkingTo: Rcpp
+Imports: Rcpp
 Description: More about what it does (maybe more than one line).
     Continuation lines should be indented.
 License: What license is it under?

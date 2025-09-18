@@ -3,4 +3,4 @@
 .RData
 .Ruserdata
 .vscode
-benchmark_results.png
+R/RcppExports.R
