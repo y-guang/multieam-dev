@@ -278,13 +278,13 @@ List accumulate_evidence_ddm_opt(
   String noise_mechanism = "add",
   Function noise_func = R_NilValue
 ) {
-  constexpr double MIN_BATCH_X = 100;
-  constexpr double MAX_BATCH_X = 10000;
+  constexpr double MIN_BATCH_X = 500;
+  constexpr double MAX_BATCH_X = 1000;
   int n_items = V.size();
   
   // Input validation
-  if (A.size() > n_items) {
-    stop("Length of A must be <= number of items");
+  if (A.size() > n_items || A.size() < max_reached) {
+    stop("Length of A must be <= number of items and >= max_reached");
   }
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");
@@ -336,11 +336,12 @@ List accumulate_evidence_ddm_opt(
   double heuristic_steps = 1.5 * (sum_A / sum_V) / dt;
   int noise_batch_X = static_cast<int>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
   int noise_batch_size = noise_batch_X * n_items;
+  noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
 
   do
   {
     // check timeout
-    for (int i = 0; i < evidence.size();) {
+    for (size_t i = 0; i < evidence.size();) {
       if (passed_t[i] < max_t) {
         i++;
       }
@@ -355,7 +356,7 @@ List accumulate_evidence_ddm_opt(
     }
 
     // check enough buffer
-    if (noise_batch_index + evidence.size() > noise_batch_size) {
+    if (noise_batch_index + evidence.size() >= noise_batch_size) {
       try {
         SEXP noise_result = noise_func(noise_batch_size, dt);
         noise_batch = as<NumericVector>(noise_result);
@@ -366,7 +367,7 @@ List accumulate_evidence_ddm_opt(
     }
 
     // check evidence reached threshold
-    for (int i = 0; i < evidence.size();) {
+    for (size_t i = 0; i < evidence.size();) {
       if (evidence[i] < A[n_recalled]) {
         i++;
       }
@@ -387,7 +388,7 @@ List accumulate_evidence_ddm_opt(
     }
 
     // update evidence for remaining items
-    for (int i = 0; i < evidence.size(); i++) {
+    for (size_t i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
       if (noise_mechanism == "add") {

@@ -13,7 +13,7 @@
 #   Check Package:             'Ctrl + Shift + E'
 #   Test Package:              'Ctrl + Shift + T'
 
-deault_noise_func <- function(dt, n) {
+deault_noise_func <- function(n, dt) {
   rnorm(n, mean = 0, sd = sqrt(dt))
 }
 
@@ -49,10 +49,10 @@ run_steps <- function(
 
     t <- t + dt
     if (noise_mechanism == "add") {
-      noise <- noise_func(dt, n_items)
+      noise <- noise_func(n_items, dt)
       evidence <- evidence + V * dt + noise
     } else if (noise_mechanism == "mult") {
-      noise <- noise_func(dt, n_items)
+      noise <- noise_func(n_items, dt)
       evidence <- evidence * noise + V * dt
     } else {
       stop('noise_mechanism must be "add" or "mult"')
