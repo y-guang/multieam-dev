@@ -267,6 +267,7 @@ List accumulate_evidence_ddm_naive_with_custom_noise(
   }
 }
 
+// [[Rcpp::export]]
 List accumulate_evidence_ddm_opt(
   NumericVector A,
   NumericVector V,
@@ -290,6 +291,11 @@ List accumulate_evidence_ddm_opt(
   }
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
+  }
+  
+  // Check if noise function is provided
+  if (Rf_isNull(noise_func)) {
+    stop("noise_func parameter is required and cannot be NULL");
   }
 
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
@@ -339,13 +345,12 @@ List accumulate_evidence_ddm_opt(
         i++;
       }
       else{
-        // timeout
+        // timeout - remove this item from consideration
         item_idx.erase(item_idx.begin() + i);
         evidence.erase(evidence.begin() + i);
         passed_t.erase(passed_t.begin() + i);
         n_determined++;
         n_undetermined--;
-        continue;
       }
     }
 
@@ -381,7 +386,7 @@ List accumulate_evidence_ddm_opt(
       }
     }
 
-    // update evidence
+    // update evidence for remaining items
     for (int i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
@@ -398,10 +403,30 @@ List accumulate_evidence_ddm_opt(
     noise_batch_index += evidence.size();
   } while (n_undetermined > 0 && n_recalled < max_reached);
   
-
-
-  
-
-
-
+  // Build output using STL vectors and convert to Rcpp types only at the end
+  if (n_recalled > 0) {
+    // Create final vectors with exact size needed
+    IntegerVector final_words(n_recalled);
+    NumericVector final_rts(n_recalled);
+    IntegerVector final_pos(n_recalled);
+    
+    // Copy data from STL vectors to Rcpp vectors
+    for (int i = 0; i < n_recalled; i++) {
+      final_words[i] = words[i]; // words are already 1-based
+      final_rts[i] = rts[i]; // rts already include ndt in passed_t
+      final_pos[i] = i + 1; // Position list (1-based)
+    }
+    
+    return List::create(
+      Named("words") = final_words,
+      Named("rts") = final_rts,
+      Named("pos") = final_pos
+    );
+  } else {
+    return List::create(
+      Named("words") = IntegerVector(0),
+      Named("rts") = NumericVector(0),
+      Named("pos") = IntegerVector(0)
+    );
+  }
 }
