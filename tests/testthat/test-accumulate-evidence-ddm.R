@@ -321,3 +321,70 @@ test_that("accumulate_evidence_ddm reaction times include ndt", {
     expect_true(result$rts[1] >= 2) # RT should include ndt
   }
 })
+
+# Test simple calculation
+test_that("accumulate_evidence_ddm calculation, linear accumulation, single item", {
+  result <- accumulate_evidence_ddm(
+    A = c(10), # Low threshold for quick response
+    V = c(1), # High drift rate
+    ndt = c(2), # 2 second non-decision time
+    dt = 0.01,
+    max_reached = 1,
+    max_t = 20,
+    noise_mechanism = "add",
+    noise_func = function(n, dt) rep(0, n)
+  )
+
+  expect_equal(length(result$rts), 1)
+  expect_equal(result$item_idx, 1)
+  expect_equal(result$rts, 2 + 10 / 1, tolerance = 0.2)
+})
+
+# Test list linear accumulation
+test_that("accumulate_evidence_ddm calculation, list linear accumulation", {
+  A <- rep(10, 4)
+  V <- c(1, 2, 3, 4)
+  ndt <- rep(2, 4)
+  expected_values <- 2 + A / V
+  result <- accumulate_evidence_ddm(
+    A = A,
+    V = V,
+    ndt = ndt,
+    dt = 0.01,
+    max_reached = 4,
+    max_t = 20,
+    noise_mechanism = "add",
+    noise_func = function(n, dt) rep(0, n)
+  )
+  expect_equal(length(result$rts), 4)
+  expect_equal(result$item_idx, c(4, 3, 2, 1)) # Should be in order of fastest
+  expect_equal(result$rts, expected_values[c(4, 3, 2, 1)], tolerance = 0.02)
+})
+
+# Test average rt close to prediction
+test_that("accumulate_evidence_ddm average rt close to prediction", {
+  set.seed(42)
+  n_items <- 10
+  n_trials <- 100
+  A <- rep(10, n_items)
+  V <- seq(0.5, 5, length.out = n_items)
+  ndt <- rep(1, n_items)
+  all_rts <- c()
+  for (i in 1:n_trials) {
+    result <- accumulate_evidence_ddm(
+      A = A,
+      V = V,
+      ndt = ndt,
+      dt = 0.01,
+      max_reached = n_items,
+      max_t = 30,
+      noise_mechanism = "add",
+      noise_func = function(n, dt) rnorm(n, 0, sqrt(dt))
+    )
+    all_rts <- c(all_rts, result$rts)
+  }
+  predicted_rts <- ndt + A / V
+  avg_predicted_rt <- mean(predicted_rts)
+  avg_simulated_rt <- mean(all_rts)
+  expect_true(abs(avg_simulated_rt - avg_predicted_rt) < 1) # Within 1 second
+})
