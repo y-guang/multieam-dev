@@ -315,9 +315,9 @@ List accumulate_evidence_ddm_opt(
   }
 
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
-  std::vector<double> V_local(n_items);
+  std::vector<double> V_dt(n_items);
   for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
-    V_local[i] = (V[i] < 0) ? 1e-8 : V[i];
+    V_dt[i] = V[i] * dt;
   }
 
   // Initialize status
@@ -401,10 +401,10 @@ List accumulate_evidence_ddm_opt(
       double noise = noise_batch[noise_batch_index + i];
       switch (noise_type) {
         case ADDITIVE:
-          evidence[i] = evidence[i] + V_local[item_idx[i]] * dt + noise;
+          evidence[i] = evidence[i] + V_dt[item_idx[i]] + noise;
           break;
         case MULTIPLICATIVE:
-          evidence[i] = evidence[i] * (1.0 + noise) + V_local[item_idx[i]] * dt;
+          evidence[i] = evidence[i] * (1.0 + noise) + V_dt[item_idx[i]];
           break;
         default:
           stop("Unknown noise type");
