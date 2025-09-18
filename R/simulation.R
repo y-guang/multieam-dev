@@ -454,8 +454,13 @@ run_simulation_parallel <- function(
   envir = environment()
   )
 
-  # run parallel processing
-  parallel_results <- parallel::parLapply(cl, chunked_prior_params, process_chunk)
+  # run parallel processing with progress bar
+  if (requireNamespace("pbapply", quietly = TRUE)) {
+    parallel_results <- pbapply::pblapply(chunked_prior_params, process_chunk, cl = cl)
+  } else {
+    message("Install 'pbapply' package for progress bar support")
+    parallel_results <- parallel::parLapply(cl, chunked_prior_params, process_chunk)
+  }
 
   # combine results from all chunks (ensure unnamed list like serial version)
   sim_results <- unname(do.call(c, parallel_results))
