@@ -75,7 +75,7 @@ test_that("run_trial with varying parameters", {
     noise_mechanism = "add",
     noise_factory = function(trial_setting) {
       function(n, dt) {
-        rnorm(n, 0, sqrt(dt) * 0.1)
+        rep(0, n)
       }
     },
     trajectories = TRUE
@@ -85,4 +85,6 @@ test_that("run_trial with varying parameters", {
   expect_equal(length(res$item_idx), n_items)
   expect_equal(length(res$.item_params$A), n_items)
   expect_true(all(sapply(res$.item_params, length) == n_items))
+  expect_equal(res$item_idx, seq(1, n_items))
+  expect_equal(res$rt, seq(1, n_items), tolerance = 1e-1)
 })
