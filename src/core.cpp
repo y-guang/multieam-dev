@@ -266,3 +266,142 @@ List accumulate_evidence_ddm_naive_with_custom_noise(
     );
   }
 }
+
+List accumulate_evidence_ddm_opt(
+  NumericVector A,
+  NumericVector V,
+  NumericVector ndt,
+  double dt,
+  int max_reached,
+  double max_t,
+  String noise_mechanism = "add",
+  Function noise_func = R_NilValue
+) {
+  constexpr double MIN_BATCH_X = 100;
+  constexpr double MAX_BATCH_X = 10000;
+  int n_items = V.size();
+  
+  // Input validation
+  if (A.size() > n_items) {
+    stop("Length of A must be <= number of items");
+  }
+  if (max_reached <= 0 || max_reached > n_items) {
+    stop("max_reached must be > 0 and <= n_items");
+  }
+  if (dt <= 0 || max_t <= 0) {
+    stop("dt and max_t must be > 0");
+  }
+
+  // Copy V to STL vector and ensure values are positive (set negative values to small positive)
+  std::vector<double> V_local(n_items);
+  for (int i = 0; i < n_items; i++) {
+    V_local[i] = (V[i] < 0) ? 1e-8 : V[i];
+  }
+
+  // Initialize status
+  std::vector<double> evidence(n_items, 0.0);
+  std::vector<int> item_idx(n_items);
+  std::iota(item_idx.begin(), item_idx.end(), 0);
+  std::vector<double> passed_t(n_items);
+  for (int i = 0; i < n_items; i++) {
+    passed_t[i] = ndt[i];
+  }
+  int n_recalled = 0;
+  int n_determined = 0;
+  int n_undetermined = n_items;
+
+  // Pre-allocate result vectors using STL
+  std::vector<int> words;
+  std::vector<double> rts;
+  words.reserve(max_reached);
+  rts.reserve(max_reached);
+
+  // Noise batching
+  NumericVector noise_batch;
+  int noise_batch_index = 0;
+  double sum_V = 0.0;
+  double sum_A = 0.0;
+  for (int i = 0; i < n_items; i++) {
+    sum_V += V_local[i];
+  }
+  for (int i = 0; i < max_reached; i++) {
+    sum_A += A[i];
+  }
+  double heuristic_steps = 1.5 * (sum_A / sum_V) / dt;
+  int noise_batch_X = static_cast<int>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
+  int noise_batch_size = noise_batch_X * n_items;
+
+  do
+  {
+    // check timeout
+    for (int i = 0; i < evidence.size();) {
+      if (passed_t[i] < max_t) {
+        i++;
+      }
+      else{
+        // timeout
+        item_idx.erase(item_idx.begin() + i);
+        evidence.erase(evidence.begin() + i);
+        passed_t.erase(passed_t.begin() + i);
+        n_determined++;
+        n_undetermined--;
+        continue;
+      }
+    }
+
+    // check enough buffer
+    if (noise_batch_index + evidence.size() > noise_batch_size) {
+      try {
+        SEXP noise_result = noise_func(noise_batch_size, dt);
+        noise_batch = as<NumericVector>(noise_result);
+        noise_batch_index = 0;
+      } catch (const std::exception& e) {
+        stop("Error calling custom noise function: " + std::string(e.what()));
+      }
+    }
+
+    // check evidence reached threshold
+    for (int i = 0; i < evidence.size();) {
+      if (evidence[i] < A[n_recalled]) {
+        i++;
+      }
+      else {
+        int selected_idx = item_idx[i];
+        words.push_back(selected_idx + 1);
+        rts.push_back(passed_t[i]);
+        n_recalled++;
+        n_determined++;
+        n_undetermined--;
+
+        evidence.erase(evidence.begin() + i);
+        item_idx.erase(item_idx.begin() + i);
+        passed_t.erase(passed_t.begin() + i);
+        // only allow one item to be recalled
+        break;
+      }
+    }
+
+    // update evidence
+    for (int i = 0; i < evidence.size(); i++) {
+      passed_t[i] += dt;
+      double noise = noise_batch[noise_batch_index + i];
+      if (noise_mechanism == "add") {
+        evidence[i] = evidence[i] + V_local[item_idx[i]] * dt + noise;
+      }
+      else if (noise_mechanism == "mult") {
+        evidence[i] = evidence[i] * (1.0 + noise) + V_local[item_idx[i]] * dt;
+      }
+      else {
+        stop("noise_mechanism must be 'add' or 'mult'");
+      }
+    }
+    noise_batch_index += evidence.size();
+  } while (n_undetermined > 0 && n_recalled < max_reached);
+  
+
+
+  
+
+
+
+}
