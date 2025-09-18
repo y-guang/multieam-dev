@@ -219,11 +219,12 @@ run_condition <- function(
 }
 
 
-#' Run a full simulation across multiple conditions
+#' Run a full simulation across multiple conditions (serial version)
 #'
-#' This function runs a complete simulation across multiple conditions, with
-#' each condition having multiple trials and items. It uses the hierarchical
-#' structure: prior -> condition -> trial -> item.
+#' This function runs a complete simulation across multiple conditions serially, 
+#' with each condition having multiple trials and items. It uses the hierarchical
+#' structure: prior -> condition -> trial -> item. All parameters must be 
+#' explicitly specified.
 #' @param prior_formulas A list of formulas defining the prior parameters
 #' for conditions
 #' @param between_trial_formulas A list of formulas defining the between-trial
@@ -233,27 +234,26 @@ run_condition <- function(
 #' @param n_trial_per_condition The number of trials per condition
 #' @param n_items The number of items per trial
 #' @param max_reached The threshold for evidence accumulation
-#' @param max_t The maximum time to simulate (default: 100)
-#' @param dt The step size for each increment (default: 0.01)
-#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
-#'  "add")
+#' @param max_t The maximum time to simulate
+#' @param dt The step size for each increment
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
 #' @param trajectories Whether to return full output including trajectories
 #' (default: FALSE)
 #' @return A list containing the simulation results for all conditions
 #' @export
-run_simulation <- function(
+run_simulation_serial <- function(
     prior_formulas,
     between_trial_formulas = list(),
     item_formulas = list(),
     n_condition,
     n_trial_per_condition,
     n_items,
-    max_reached = n_items,
-    max_t = 100,
-    dt = 0.01,
-    noise_mechanism = "add",
+    max_reached,
+    max_t,
+    dt,
+    noise_mechanism,
     noise_factory = function(condition_setting) {
       function(n, dt) rep(0, n)
     },
@@ -316,6 +316,91 @@ run_simulation <- function(
 }
 
 
+#' Run a full simulation across multiple conditions
+#'
+#' This function runs a complete simulation across multiple conditions, with
+#' each condition having multiple trials and items. It can run either serially
+#' or in parallel based on the parallel parameter. It uses the hierarchical
+#' structure: prior -> condition -> trial -> item.
+#' @param prior_formulas A list of formulas defining the prior parameters
+#' for conditions
+#' @param between_trial_formulas A list of formulas defining the between-trial
+#' parameters
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_condition The number of conditions to simulate
+#' @param n_trial_per_condition The number of trials per condition
+#' @param n_items The number of items per trial
+#' @param max_reached The threshold for evidence accumulation (default: n_items)
+#' @param max_t The maximum time to simulate (default: 100)
+#' @param dt The step size for each increment (default: 0.01)
+#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
+#'  "add")
+#' @param noise_factory A function that takes condition_setting and returns a
+#' noise function with signature function(n, dt). Default returns zero noise.
+#' @param trajectories Whether to return full output including trajectories
+#' (default: FALSE)
+#' @param parallel Whether to run in parallel (default: FALSE)
+#' @param chunk The size of chunks to split conditions into for parallel
+#' processing (default: ceiling(n_condition / cores))
+#' @param n_cores The number of cores to use for parallel processing
+#' (default: parallel::detectCores() - 1)
+#' @return A list containing the simulation results for all conditions
+#' @export
+run_simulation <- function(
+    prior_formulas,
+    between_trial_formulas = list(),
+    item_formulas = list(),
+    n_condition,
+    n_trial_per_condition,
+    n_items,
+    max_reached = n_items,
+    max_t = 100,
+    dt = 0.01,
+    noise_mechanism = "add",
+    noise_factory = function(condition_setting) {
+      function(n, dt) rep(0, n)
+    },
+    trajectories = FALSE,
+    parallel = FALSE,
+    chunk = NULL,
+    n_cores = NULL) {
+  
+  if (parallel) {
+    run_simulation_parallel(
+      prior_formulas = prior_formulas,
+      between_trial_formulas = between_trial_formulas,
+      item_formulas = item_formulas,
+      n_condition = n_condition,
+      n_trial_per_condition = n_trial_per_condition,
+      n_items = n_items,
+      max_reached = max_reached,
+      max_t = max_t,
+      dt = dt,
+      noise_mechanism = noise_mechanism,
+      noise_factory = noise_factory,
+      trajectories = trajectories,
+      chunk = chunk,
+      n_cores = n_cores
+    )
+  } else {
+    run_simulation_serial(
+      prior_formulas = prior_formulas,
+      between_trial_formulas = between_trial_formulas,
+      item_formulas = item_formulas,
+      n_condition = n_condition,
+      n_trial_per_condition = n_trial_per_condition,
+      n_items = n_items,
+      max_reached = max_reached,
+      max_t = max_t,
+      dt = dt,
+      noise_mechanism = noise_mechanism,
+      noise_factory = noise_factory,
+      trajectories = trajectories
+    )
+  }
+}
+
+
 #' Run a full simulation across multiple conditions in parallel
 #'
 #' This function runs a complete simulation across multiple conditions using
@@ -352,16 +437,14 @@ run_simulation_parallel <- function(
     n_condition,
     n_trial_per_condition,
     n_items,
-    max_reached = n_items,
-    max_t = 100,
-    dt = 0.01,
-    noise_mechanism = "add",
-    noise_factory = function(condition_setting) {
-      function(n, dt) rep(0, n)
-    },
+    max_reached,
+    max_t,
+    dt,
+    noise_mechanism,
+    noise_factory,
     trajectories = FALSE,
     chunk = NULL,
-    n_cores = parallel::detectCores() - 1) {
+    n_cores = NULL) {
   # validate inputs
   if (!is.list(prior_formulas)) {
     stop("prior_formulas must be a list of formulas")
@@ -381,13 +464,21 @@ run_simulation_parallel <- function(
   if (n_items < 1) {
     stop("n_items must be at least 1")
   }
+
+  # set default values
+  if (is.null(chunk)) {
+    chunk <- ceiling(n_condition / n_cores)
+  }
+  if (is.null(n_cores)) {
+    n_cores <- parallel::detectCores() - 1
+  }
+
+  # validate the nullable parameters
   if (n_cores < 1) {
     stop("cores must be at least 1")
   }
-
-  # set default chunk size if not provided
-  if (is.null(chunk)) {
-    chunk <- ceiling(n_condition / n_cores)
+  if (chunk < 1) {
+    stop("chunk size must be at least 1")
   }
 
   # generate condition parameters from prior formulas
@@ -476,3 +567,5 @@ run_simulation_parallel <- function(
   # Return the combined results
   return(sim_results)
 }
+
+
