@@ -231,8 +231,8 @@ run_condition <- function(
 #' @param item_formulas A list of formulas defining the item parameters
 #' @param n_condition The number of conditions to simulate
 #' @param n_trial_per_condition The number of trials per condition
-#' @param n_item The number of items per trial
-#' @param max_reached The threshold for evidence accumulation (default: n_item)
+#' @param n_items The number of items per trial
+#' @param max_reached The threshold for evidence accumulation
 #' @param max_t The maximum time to simulate (default: 100)
 #' @param dt The step size for each increment (default: 0.01)
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
@@ -275,7 +275,7 @@ run_simulation <- function(
     stop("n_trial_per_condition must be at least 1")
   }
   if (n_items < 1) {
-    stop("n_item must be at least 1")
+    stop("n_items must be at least 1")
   }
 
   # generate condition parameters from prior formulas
@@ -329,8 +329,8 @@ run_simulation <- function(
 #' @param item_formulas A list of formulas defining the item parameters
 #' @param n_condition The number of conditions to simulate
 #' @param n_trial_per_condition The number of trials per condition
-#' @param n_item The number of items per trial
-#' @param max_reached The threshold for evidence accumulation (default: n_item)
+#' @param n_items The number of items per trial
+#' @param max_reached The threshold for evidence accumulation (default: n_items)
 #' @param max_t The maximum time to simulate (default: 100)
 #' @param dt The step size for each increment (default: 0.01)
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
@@ -379,7 +379,7 @@ run_simulation_parallel <- function(
     stop("n_trial_per_condition must be at least 1")
   }
   if (n_items < 1) {
-    stop("n_item must be at least 1")
+    stop("n_items must be at least 1")
   }
   if (n_cores < 1) {
     stop("cores must be at least 1")
