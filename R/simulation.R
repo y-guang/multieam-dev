@@ -72,7 +72,7 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 #' Run a single trial of the DDM simulation
 #'
 #' This function runs a single trial of the DDM simulation using the provided
-#' item formulas and trial settings.
+#' item formulas and trial settings. It's a wrapper around the core C++ function
 #' @param trial_setting A list of named values representing the trial settings
 #' @param item_formulas A list of formulas defining the item parameters
 #' @param n_item The number of items to simulate
@@ -86,6 +86,7 @@ evaluate_with_dt <- function(formulas, data = list(), n) {
 #' @note After evaluation, parameters A, V, and ndt are expected to be
 #' numeric vectors of length n_item. And they are matched by position. So,
 #' the first element of A, V, and ndt corresponds to the first item, and so on.
+#' @keywords internal
 run_trial <- function(
     trial_setting,
     item_formulas,
@@ -93,7 +94,7 @@ run_trial <- function(
     dt,
     max_reached,
     max_t,
-    noise_mechanism = "add",
+    noise_mechanism,
     noise_factory) {
   # prepare
   item_params <- evaluate_with_dt(
@@ -116,3 +117,5 @@ run_trial <- function(
 
   sim_result
 }
+
+
