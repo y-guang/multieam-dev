@@ -278,8 +278,8 @@ List accumulate_evidence_ddm_opt(
   String noise_mechanism = "add",
   Function noise_func = R_NilValue
 ) {
-  constexpr double MIN_BATCH_X = 500;
-  constexpr double MAX_BATCH_X = 1000;
+  constexpr double MIN_BATCH_X = 256;
+  constexpr double MAX_BATCH_X = 2048;
   int n_items = V.size();
   
   // Input validation
@@ -338,15 +338,7 @@ List accumulate_evidence_ddm_opt(
   // Noise batching
   NumericVector noise_batch;
   int noise_batch_index = 0;
-  double sum_V = 0.0;
-  double sum_A = 0.0;
-  for (int i = 0; i < n_items; i++) {
-    sum_V += V_local[i];
-  }
-  for (int i = 0; i < max_reached; i++) {
-    sum_A += A[i];
-  }
-  double heuristic_steps = 1.5 * (sum_A / sum_V) / dt;
+  double heuristic_steps = max_t / dt / 10;
   int noise_batch_X = static_cast<int>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
   int noise_batch_size = noise_batch_X * n_items;
   noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
