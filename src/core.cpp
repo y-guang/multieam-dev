@@ -3,7 +3,7 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-List accumulate_evidence_ddm_opt(
+List accumulate_evidence_ddm(
   NumericVector A,
   NumericVector V,
   NumericVector ndt,
@@ -30,6 +30,11 @@ List accumulate_evidence_ddm_opt(
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
   }
+  if (noise_func == R_NilValue)
+  {
+    stop("noise_func parameter is required and cannot be NULL");
+  }
+  
   
   // Check if noise function is provided
   if (Rf_isNull(noise_func)) {
