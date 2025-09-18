@@ -337,8 +337,8 @@ run_simulation_serial <- function(
 #'  "add")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
-#' @param trajectories Whether to return full output including trajectories
-#' (default: FALSE)
+#' @param trajectories Whether to return full output including trajectories i.e.
+#' the full parameter calculated at each trial. (default: FALSE)
 #' @param parallel Whether to run in parallel (default: FALSE)
 #' @param chunk The size of chunks to split conditions into for parallel
 #' processing (default: ceiling(n_condition / cores))
@@ -357,13 +357,16 @@ run_simulation <- function(
     max_t = 100,
     dt = 0.01,
     noise_mechanism = "add",
-    noise_factory = function(condition_setting) {
-      function(n, dt) rep(0, n)
-    },
+    noise_factory = NULL,
     trajectories = FALSE,
     parallel = FALSE,
     chunk = NULL,
     n_cores = NULL) {
+  if (is.null(noise_factory)) {
+    noise_factory <- function(condition_setting) {
+      function(n, dt) rep(0, n)
+    }
+  }
   if (parallel) {
     run_simulation_parallel(
       prior_formulas = prior_formulas,
