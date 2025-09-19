@@ -45,7 +45,8 @@ sim_result <- run_simulation(
   dt = 0.01,
   noise_mechanism = "add",
   noise_factory = noise_factory,
-  trajectories = TRUE
+  trajectories = TRUE,
+  parallel = FALSE
 )
 
 flat_result <- flatten_simulation_results(sim_result)

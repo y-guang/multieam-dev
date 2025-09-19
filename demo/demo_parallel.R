@@ -34,7 +34,7 @@ noise_factory <- function(context) {
   }
 }
 
-sim_result <- run_simulation_parallel(
+sim_result <- run_simulation(
   prior_formulas = prior_formulas,
   between_trial_formulas = between_trial_formulas,
   item_formulas = item_formulas,
@@ -47,7 +47,8 @@ sim_result <- run_simulation_parallel(
   noise_mechanism = "add",
   noise_factory = noise_factory,
   trajectories = FALSE,
-  chunk = 100
+  parallel = TRUE,
+  chunk_size = 100
 )
 
 flat_result <- flatten_simulation_results(sim_result)

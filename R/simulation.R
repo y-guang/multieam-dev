@@ -338,9 +338,9 @@ run_simulation_serial <- function(
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
 #' @param trajectories Whether to return full output including trajectories i.e.
-#' the full parameter calculated at each trial. (default: FALSE)
+#' the full parameter evaluated at each trial. (default: FALSE)
 #' @param parallel Whether to run in parallel (default: FALSE)
-#' @param chunk The size of chunks to split conditions into for parallel
+#' @param chunk_size The size of chunks to split conditions into for parallel
 #' processing (default: ceiling(n_condition / cores))
 #' @param n_cores The number of cores to use for parallel processing
 #' (default: parallel::detectCores() - 1)
@@ -360,7 +360,7 @@ run_simulation <- function(
     noise_factory = NULL,
     trajectories = FALSE,
     parallel = FALSE,
-    chunk = NULL,
+    chunk_size = NULL,
     n_cores = NULL) {
   if (is.null(noise_factory)) {
     noise_factory <- function(condition_setting) {
@@ -381,7 +381,7 @@ run_simulation <- function(
       noise_mechanism = noise_mechanism,
       noise_factory = noise_factory,
       trajectories = trajectories,
-      chunk = chunk,
+      chunk_size = chunk_size,
       n_cores = n_cores
     )
   } else {
@@ -426,9 +426,9 @@ run_simulation <- function(
 #' noise function with signature function(n, dt). Default returns zero noise.
 #' @param trajectories Whether to return full output including trajectories
 #' (default: FALSE)
-#' @param chunk The size of chunks to split conditions into for parallel
+#' @param chunk_size The size of chunks to split conditions into for parallel
 #' processing (default: ceiling(n_condition / cores))
-#' @param cores The number of cores to use for parallel processing
+#' @param n_cores The number of cores to use for parallel processing
 #' (default: parallel::detectCores() - 1)
 #' @return A list containing the simulation results for all conditions
 #' @export
@@ -445,7 +445,7 @@ run_simulation_parallel <- function(
     noise_mechanism,
     noise_factory,
     trajectories = FALSE,
-    chunk = NULL,
+    chunk_size = NULL,
     n_cores = NULL) {
   # validate inputs
   if (!is.list(prior_formulas)) {
@@ -468,8 +468,8 @@ run_simulation_parallel <- function(
   }
 
   # set default values
-  if (is.null(chunk)) {
-    chunk <- ceiling(n_condition / n_cores)
+  if (is.null(chunk_size)) {
+    chunk_size <- ceiling(n_condition / n_cores)
   }
   if (is.null(n_cores)) {
     n_cores <- parallel::detectCores() - 1
@@ -479,7 +479,7 @@ run_simulation_parallel <- function(
   if (n_cores < 1) {
     stop("cores must be at least 1")
   }
-  if (chunk < 1) {
+  if (chunk_size < 1) {
     stop("chunk size must be at least 1")
   }
 
@@ -492,7 +492,10 @@ run_simulation_parallel <- function(
 
   # split prior_params into chunks
   condition_indices <- seq_len(n_condition)
-  chunk_indices <- split(condition_indices, ceiling(condition_indices / chunk))
+  chunk_indices <- split(
+    condition_indices, 
+    ceiling(condition_indices / chunk_size)
+    )
 
   # create chunked prior parameters
   chunked_prior_params <- lapply(chunk_indices, function(indices) {
