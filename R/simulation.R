@@ -446,7 +446,8 @@ run_simulation_parallel <- function(
     noise_factory,
     trajectories = FALSE,
     chunk_size = NULL,
-    n_cores = NULL) {
+    n_cores = NULL,
+    parallel_rand_seed = NULL) {
   # validate inputs
   if (!is.list(prior_formulas)) {
     stop("prior_formulas must be a list of formulas")
@@ -474,10 +475,13 @@ run_simulation_parallel <- function(
   if (is.null(n_cores)) {
     n_cores <- parallel::detectCores() - 1
   }
+  if (is.null(parallel_rand_seed)) {
+    parallel_rand_seed <- sample.int(.Machine$integer.max, 1)
+  }
 
   # validate the nullable parameters
   if (n_cores < 1) {
-    stop("cores must be at least 1")
+    stop("n_cores must be at least 1")
   }
   if (chunk_size < 1) {
     stop("chunk size must be at least 1")
@@ -549,6 +553,9 @@ run_simulation_parallel <- function(
   ),
   envir = environment()
   )
+
+  # set RNG seed for parallel workers
+  parallel::clusterSetRNGStream(cl, iseed = parallel_rand_seed)
 
   # run parallel processing with progress bar
   if (requireNamespace("pbapply", quietly = TRUE)) {
