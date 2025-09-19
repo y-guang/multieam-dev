@@ -493,9 +493,9 @@ run_simulation_parallel <- function(
   # split prior_params into chunks
   condition_indices <- seq_len(n_condition)
   chunk_indices <- split(
-    condition_indices, 
+    condition_indices,
     ceiling(condition_indices / chunk_size)
-    )
+  )
 
   # create chunked prior parameters
   chunked_prior_params <- lapply(chunk_indices, function(indices) {
