@@ -72,6 +72,11 @@ flatten_simulation_results <- function(sim_results) {
       trial <- trials[[trial_idx]]
       n_items_this_trial <- length(trial$item_idx)
 
+      # Skip trials with no items
+      if (n_items_this_trial == 0) {
+        next
+      }
+
       # Calculate row indices for this trial
       row_indices <- current_row:(current_row + n_items_this_trial - 1)
 
