@@ -125,11 +125,26 @@ choose_best_trim_parallel <- function(
   return(result)
 }
 
-apply_trim <- function() {
-
+apply_trim <- function(flat_df, best_trim) {
+  best_trim %>%
+    select(
+      condition_idx,
+      rank_idx,
+      trim,
+      q_lower,
+      q_upper
+    ) %>%
+    inner_join(
+      flat_df,
+      by = c("condition_idx", "rank_idx")
+    ) %>%
+    filter(
+      rt >= q_lower & rt <= q_upper
+    )
 }
 
 best_trim <- choose_best_trim(flat_df = tidy_data)
 best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 10)
+trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim)
 
 
