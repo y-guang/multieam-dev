@@ -1,8 +1,8 @@
 # placeholder
-n_items <- 4
+n_items <- 10
 
 prior_formulas <- list(
-  n_items ~ 4,
+  n_items ~ 10,
   # parameters with distributions
   # A
   A_alpha ~ distributional::dist_uniform(1, 10),
@@ -38,8 +38,8 @@ sim_result <- run_simulation(
   prior_formulas = prior_formulas,
   between_trial_formulas = between_trial_formulas,
   item_formulas = item_formulas,
-  n_condition = 2,
-  n_trial_per_condition = 3,
+  n_condition = 20,
+  n_trial_per_condition = 100,
   n_items = n_items,
   max_t = 100,
   dt = 0.01,
