@@ -1,8 +1,6 @@
 library(dplyr)
 library(tidyr)
 
-trims = seq(0, 0.2, by = 0.01)
-lambda = 0.5
 
 choose_best_trim <- function(
     flat_df,
@@ -87,7 +85,7 @@ choose_best_trim_parallel <- function(
 
   # Split conditions into chunks (ensuring condition_idx is not split)
   condition_chunks <- split(unique_conditions, ceiling(seq_along(unique_conditions) / chunk_size))
-  
+
   # Split the actual data in main session to avoid OOM
   data_chunks <- lapply(condition_chunks, function(condition_indices) {
     flat_df[flat_df$condition_idx %in% condition_indices, ]
@@ -109,8 +107,17 @@ choose_best_trim_parallel <- function(
     library(tidyr)
   })
 
-  # Run parallel processing
-  chunk_results <- parallel::parLapply(cl, data_chunks, process_chunk)
+  # Run parallel processing with progress bar
+  if (requireNamespace("pbapply", quietly = TRUE)) {
+    chunk_results <- pbapply::pblapply(
+      data_chunks,
+      process_chunk,
+      cl = cl
+    )
+  } else {
+    message("Install 'pbapply' package for progress bar support")
+    chunk_results <- parallel::parLapply(cl, data_chunks, process_chunk)
+  }
 
   # Combine results
   result <- do.call(rbind, chunk_results)
@@ -118,7 +125,11 @@ choose_best_trim_parallel <- function(
   return(result)
 }
 
+apply_trim <- function() {
+
+}
+
 best_trim <- choose_best_trim(flat_df = tidy_data)
-best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data)
+best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 10)
 
 
