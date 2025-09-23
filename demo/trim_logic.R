@@ -60,7 +60,61 @@ choose_best_trim <- function(
     ungroup()
 }
 
-best_trim <- choose_best_trim(flat_df = tidy_data)
+choose_best_trim_parallel <- function(
+    flat_df,
+    trims = seq(0, 0.2, by = 0.01),
+    lambda = 0.02,
+    chunk_size = NULL,
+    n_cores = NULL
+) {
+  # Load required libraries
+  if (!requireNamespace("parallel", quietly = TRUE)) {
+    stop("Package 'parallel' is required for parallel processing")
+  }
 
+  # Set default values
+  if (is.null(n_cores)) {
+    n_cores <- parallel::detectCores() - 1
+  }
+
+  # Get unique condition indices
+  unique_conditions <- unique(flat_df$condition_idx)
+
+  # Set chunk size if not provided
+  if (is.null(chunk_size)) {
+    chunk_size <- ceiling(length(unique_conditions) / n_cores)
+  }
+
+  # Split conditions into chunks (ensuring condition_idx is not split)
+  condition_chunks <- split(unique_conditions, ceiling(seq_along(unique_conditions) / chunk_size))
+
+  # Function to process each chunk
+  process_chunk <- function(condition_indices) {
+    chunk_data <- flat_df[flat_df$condition_idx %in% condition_indices, ]
+    return(choose_best_trim(chunk_data, trims = trims, lambda = lambda))
+  }
+
+  # Setup parallel cluster
+  cl <- parallel::makeCluster(min(n_cores, length(condition_chunks)))
+  on.exit(parallel::stopCluster(cl))
+
+  # Export env
+  parallel::clusterExport(cl, c("choose_best_trim", "trims", "lambda"), envir = environment())
+  parallel::clusterEvalQ(cl, {
+    library(dplyr)
+    library(tidyr)
+  })
+
+  # Run parallel processing
+  chunk_results <- parallel::parLapply(cl, condition_chunks, process_chunk)
+
+  # Combine results
+  result <- do.call(rbind, chunk_results)
+
+  return(result)
+}
+
+best_trim <- choose_best_trim(flat_df = tidy_data)
+best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data)
 
 
