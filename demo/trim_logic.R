@@ -46,6 +46,7 @@ choose_best_trim <- function(
       n_used = n(),
       q_lower = 0,
       q_upper = first(qutile_upper),
+      .groups = "drop_last" # note this
     ) %>%
     mutate(
       score = ks_D + lambda * trim,
@@ -53,10 +54,13 @@ choose_best_trim <- function(
     rename(
       mu_hat = mu,
       sigma_hat = sigma,
-    )
+    ) %>%
+    arrange(score, trim) %>%
+    slice(1) %>%
+    ungroup()
 }
 
-choose_best_trim(flat_df = tidy_data)
+best_trim <- choose_best_trim(flat_df = tidy_data)
 
 
 
