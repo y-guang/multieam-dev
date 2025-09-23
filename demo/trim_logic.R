@@ -5,15 +5,14 @@ library(tidyr)
 choose_best_trim <- function(
     flat_df,
     trims = seq(0, 0.2, by = 0.01),
-    lambda = 0.02
-) {
+    lambda = 0.02) {
   flat_df %>%
     # filter out invalid rt
     filter(
       !is.na(rt) & rt > 0 & is.finite(rt)
     ) %>%
     # expand to grid format
-    expand_grid (
+    expand_grid(
       trim = trims
     ) %>%
     group_by(
@@ -38,7 +37,8 @@ choose_best_trim <- function(
       sigma = sd(rt_log, na.rm = TRUE),
       ks_D = suppressWarnings(
         ks.test(
-          rt, "plnorm", meanlog = mu, sdlog = sigma
+          rt, "plnorm",
+          meanlog = mu, sdlog = sigma
         )$statistic
       ),
       n_used = n(),
@@ -63,8 +63,7 @@ choose_best_trim_parallel <- function(
     trims = seq(0, 0.2, by = 0.01),
     lambda = 0.02,
     chunk_size = NULL,
-    n_cores = NULL
-) {
+    n_cores = NULL) {
   # Load required libraries
   if (!requireNamespace("parallel", quietly = TRUE)) {
     stop("Package 'parallel' is required for parallel processing")
@@ -125,8 +124,11 @@ choose_best_trim_parallel <- function(
   return(result)
 }
 
-apply_trim <- function(flat_df, best_trim) {
+apply_trim <- function(flat_df, best_trim, min_n_used = 0) {
   best_trim %>%
+    filter(
+      n_used >= min_n_used
+    ) %>%
     select(
       condition_idx,
       rank_idx,
@@ -143,8 +145,7 @@ apply_trim <- function(flat_df, best_trim) {
     )
 }
 
-best_trim <- choose_best_trim(flat_df = tidy_data)
-best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 10)
-trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim)
-
-
+tidy_data <- flat_result
+# best_trim <- choose_best_trim(flat_df = tidy_data)
+best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 100)
+trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim_by_parallel, min_n_used = 80)
