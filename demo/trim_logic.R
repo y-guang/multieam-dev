@@ -87,15 +87,19 @@ choose_best_trim_parallel <- function(
 
   # Split conditions into chunks (ensuring condition_idx is not split)
   condition_chunks <- split(unique_conditions, ceiling(seq_along(unique_conditions) / chunk_size))
+  
+  # Split the actual data in main session to avoid OOM
+  data_chunks <- lapply(condition_chunks, function(condition_indices) {
+    flat_df[flat_df$condition_idx %in% condition_indices, ]
+  })
 
-  # Function to process each chunk
-  process_chunk <- function(condition_indices) {
-    chunk_data <- flat_df[flat_df$condition_idx %in% condition_indices, ]
+  # Function to process each chunk (now receives actual data, not indices)
+  process_chunk <- function(chunk_data) {
     return(choose_best_trim(chunk_data, trims = trims, lambda = lambda))
   }
 
   # Setup parallel cluster
-  cl <- parallel::makeCluster(min(n_cores, length(condition_chunks)))
+  cl <- parallel::makeCluster(min(n_cores, length(data_chunks)))
   on.exit(parallel::stopCluster(cl))
 
   # Export env
@@ -106,7 +110,7 @@ choose_best_trim_parallel <- function(
   })
 
   # Run parallel processing
-  chunk_results <- parallel::parLapply(cl, condition_chunks, process_chunk)
+  chunk_results <- parallel::parLapply(cl, data_chunks, process_chunk)
 
   # Combine results
   result <- do.call(rbind, chunk_results)
