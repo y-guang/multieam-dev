@@ -203,8 +203,8 @@ find_lognormal_trim_threshold <- function(
   }
 }
 
-apply_trim <- function(flat_df, best_trim, min_n_used = 0) {
-  best_trim %>%
+apply_trim <- function(flat_df, threshold_df, min_n_used = 0) {
+  threshold_df %>%
     dplyr::filter(
       n_used >= min_n_used
     ) %>%
