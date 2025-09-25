@@ -1,5 +1,4 @@
 library(dplyr)
-library(tidyr)
 
 
 choose_best_trim <- function(
@@ -12,8 +11,8 @@ choose_best_trim <- function(
       !is.na(rt) & rt > 0 & is.finite(rt)
     ) %>%
     # expand to grid format
-    expand_grid(
-      trim = trims
+    cross_join(
+      tibble(trim = trims)
     ) %>%
     group_by(
       condition_idx,
@@ -57,6 +56,107 @@ choose_best_trim <- function(
     slice(1) %>%
     ungroup()
 }
+
+choose_best_trim_large <- function(
+    flat_df,
+    trims = seq(0, 0.2, by = 0.01),
+    lambda = 0.02,
+    chunk_size = NULL,
+    n_cores = NULL) {
+  # Load required libraries
+  if (!requireNamespace("parallel", quietly = TRUE)) {
+    stop("Package 'parallel' is required for parallel processing")
+  }
+  if (!requireNamespace("arrow", quietly = TRUE)) {
+    stop("Package 'arrow' is required for dataset partitioning")
+  }
+
+  # Set default values
+  if (is.null(n_cores)) {
+    n_cores <- parallel::detectCores() - 1
+  }
+
+  # Get unique condition indices to determine chunk size
+  unique_conditions <- unique(flat_df$condition_idx)
+  if (is.null(chunk_size)) {
+    chunk_size <- ceiling(length(unique_conditions) / n_cores)
+  }
+
+  # Set up temporary folder for intermediate files
+  tmp_folder <- file.path(tempdir(), "choose_best_trim_large")
+  if (dir.exists(tmp_folder)) {
+    unlink(tmp_folder, recursive = TRUE)
+  }
+  dir.create(tmp_folder, recursive = TRUE)
+
+  # Create partition indices and write partitioned dataset
+  flat_df <- flat_df %>%
+    mutate(
+      partition_idx = dense_rank(condition_idx) %% chunk_size
+    )
+  partition_indices <- unique(flat_df$partition_idx)
+
+  # store temporary data and clean up memory
+  flat_df %>%
+    arrow::write_dataset(
+      tmp_folder,
+      format = "parquet",
+      partitioning = "partition_idx"
+    )
+  remove(flat_df)
+  gc()
+  on.exit(unlink(tmp_folder, recursive = TRUE), add = TRUE)
+
+  # Function to process each partition
+  process_partition <- function(partition_idx) {
+    # Open dataset fresh in each worker (Arrow datasets can't be serialized)
+    worker_dataset <- arrow::open_dataset(tmp_folder, format = "parquet")
+    
+    # Filter dataset for this partition and collect to memory
+    partition_data <- worker_dataset %>%
+      filter(partition_idx == !!partition_idx) %>%
+      collect()
+
+    # Process this partition with the original function
+    return(choose_best_trim(partition_data, trims = trims, lambda = lambda))
+  }
+
+  # Setup parallel cluster
+  cl <- parallel::makeCluster(min(n_cores, length(partition_indices)))
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+
+  # Export required objects and functions to cluster
+  parallel::clusterExport(cl,
+    c("choose_best_trim", "trims", "lambda", "tmp_folder", "process_partition"),
+    envir = environment()
+  )
+  parallel::clusterEvalQ(cl, {
+    library(dplyr)
+    library(arrow)
+  })
+
+  # Run parallel processing with progress bar
+  if (requireNamespace("pbapply", quietly = TRUE)) {
+    partition_results <- pbapply::pblapply(
+      partition_indices,
+      process_partition,
+      cl = cl
+    )
+  } else {
+    message("Install 'pbapply' package for progress bar support")
+    partition_results <- parallel::parLapply(
+      cl,
+      partition_indices,
+      process_partition
+    )
+  }
+
+  # Combine results
+  result <- do.call(rbind, partition_results)
+
+  return(result)
+}
+
 
 choose_best_trim_parallel <- function(
     flat_df,
@@ -146,6 +246,15 @@ apply_trim <- function(flat_df, best_trim, min_n_used = 0) {
 }
 
 tidy_data <- flat_result
+
+# Option 1: Original function (for small datasets)
 # best_trim <- choose_best_trim(flat_df = tidy_data)
-best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 100)
-trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim_by_parallel, min_n_used = 80)
+
+# Option 2: Parallel processing in memory (medium datasets)
+# best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 100, n_cores = 6)
+
+# Option 3: Large dataset processing with temporary files (OOM solution)
+best_trim_large <- choose_best_trim_large(flat_df = tidy_data, chunk_size = 100)
+
+# Apply the trim using the results
+trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim_large, min_n_used = 80)
