@@ -38,7 +38,7 @@ sim_result <- run_simulation(
   prior_formulas = prior_formulas,
   between_trial_formulas = between_trial_formulas,
   item_formulas = item_formulas,
-  n_condition = 10000,
+  n_condition = 1000,
   n_trial_per_condition = 100,
   n_items = n_items,
   max_reached = n_items,
