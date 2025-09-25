@@ -1,4 +1,4 @@
-choose_best_trim <- function(
+find_lognormal_trim_threshold_serial <- function(
     flat_df,
     trims = seq(0, 0.2, by = 0.01),
     lambda = 0.02) {
@@ -55,7 +55,7 @@ choose_best_trim <- function(
     dplyr::ungroup()
 }
 
-choose_best_trim_large <- function(
+find_lognormal_trim_threshold_parallel <- function(
     flat_df,
     trims = seq(0, 0.2, by = 0.01),
     lambda = 0.02,
@@ -84,7 +84,7 @@ choose_best_trim_large <- function(
   }
 
   # Set up temporary folder for intermediate files
-  temp_dir <- file.path(tempdir(), "choose_best_trim_large")
+  temp_dir <- file.path(tempdir(), "find_lognormal_trim_threshold_parallel")
   if (dir.exists(temp_dir)) {
     unlink(temp_dir, recursive = TRUE)
   }
@@ -122,7 +122,10 @@ choose_best_trim_large <- function(
       dplyr::collect()
 
     # Process this partition with the original function
-    return(choose_best_trim(partition_data, trims = trims, lambda = lambda))
+    return(find_lognormal_trim_threshold_serial(
+      partition_data,
+      trims = trims, lambda = lambda
+    ))
   }
 
   # Setup parallel cluster
@@ -131,7 +134,10 @@ choose_best_trim_large <- function(
 
   # Export required objects and functions to cluster
   parallel::clusterExport(cl,
-    c("choose_best_trim", "trims", "lambda", "temp_dir", "process_partition"),
+    c(
+      "find_lognormal_trim_threshold_serial",
+      "trims", "lambda", "temp_dir", "process_partition"
+    ),
     envir = environment()
   )
   parallel::clusterEvalQ(cl, {
@@ -181,14 +187,3 @@ apply_trim <- function(flat_df, best_trim, min_n_used = 0) {
       rt >= q_lower & rt <= q_upper
     )
 }
-
-tidy_data <- flat_result
-
-# Option 1: Original function (for small datasets)
-# best_trim <- choose_best_trim(flat_df = tidy_data)
-
-# Option 3: Large dataset processing with temporary files
-best_trim_large <- choose_best_trim_large(flat_df = tidy_data)
-
-# Apply the trim using the results
-trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim_large, min_n_used = 80)
