@@ -18,21 +18,21 @@ choose_best_trim <- function(
       trim
     ) %>%
     dplyr::mutate(
-      qutile_upper = quantile(rt, probs = 1 - trim, na.rm = TRUE)
+      quantile_upper = quantile(rt, probs = 1 - trim, na.rm = TRUE)
     ) %>%
     dplyr::filter(
-      rt < qutile_upper
+      rt < quantile_upper
     ) %>%
     dplyr::filter(
       dplyr::n() >= 2
     ) %>%
     dplyr::mutate(
-      rt_log = log(rt),
+      log_rt = log(rt),
     ) %>%
     dplyr::summarise(
-      mu = mean(rt_log, na.rm = TRUE),
-      sigma = sd(rt_log, na.rm = TRUE),
-      ks_D = suppressWarnings(
+      mu = mean(log_rt, na.rm = TRUE),
+      sigma = sd(log_rt, na.rm = TRUE),
+      ks_statistic = suppressWarnings(
         stats::ks.test(
           rt, "plnorm",
           meanlog = mu, sdlog = sigma
@@ -40,11 +40,11 @@ choose_best_trim <- function(
       ),
       n_used = dplyr::n(),
       q_lower = 0,
-      q_upper = dplyr::first(qutile_upper),
+      q_upper = dplyr::first(quantile_upper),
       .groups = "drop_last" # note this
     ) %>%
     dplyr::mutate(
-      score = ks_D + lambda * trim,
+      score = ks_statistic + lambda * trim,
     ) %>%
     dplyr::rename(
       mu_hat = mu,
@@ -74,7 +74,7 @@ choose_best_trim_large <- function(
     n_cores <- parallel::detectCores() - 1
   }
 
-  # heuristic for chunk size
+  # Heuristic for chunk size
   if (is.null(chunk_size)) {
     unique_conditions <- unique(flat_df$condition_idx)
     n_unique <- length(unique_conditions)
@@ -84,37 +84,37 @@ choose_best_trim_large <- function(
   }
 
   # Set up temporary folder for intermediate files
-  tmp_folder <- file.path(tempdir(), "choose_best_trim_large")
-  if (dir.exists(tmp_folder)) {
-    unlink(tmp_folder, recursive = TRUE)
+  temp_dir <- file.path(tempdir(), "choose_best_trim_large")
+  if (dir.exists(temp_dir)) {
+    unlink(temp_dir, recursive = TRUE)
   }
-  dir.create(tmp_folder, recursive = TRUE)
+  dir.create(temp_dir, recursive = TRUE)
 
   # Create partition indices and write partitioned dataset
   flat_df <- flat_df %>%
-    # optimise storage
+    # Optimize storage
     dplyr::select(condition_idx, rank_idx, rt) %>%
     dplyr::mutate(
       partition_idx = (as.integer(factor(condition_idx)) - 1) %/% chunk_size
     )
   partition_indices <- unique(flat_df$partition_idx)
 
-  # store temporary data and clean up memory
+  # Store temporary data and clean up memory
   flat_df %>%
     arrow::write_dataset(
-      tmp_folder,
+      temp_dir,
       format = "parquet",
       partitioning = "partition_idx"
     )
   remove(flat_df)
   gc()
-  on.exit(unlink(tmp_folder, recursive = TRUE), add = TRUE)
+  on.exit(unlink(temp_dir, recursive = TRUE), add = TRUE)
 
   # Function to process each partition
   process_partition <- function(partition_idx) {
-    # load corresponding partition
+    # Load corresponding partition
     arrow::set_cpu_count(1)
-    worker_dataset <- arrow::open_dataset(tmp_folder, format = "parquet")
+    worker_dataset <- arrow::open_dataset(temp_dir, format = "parquet")
 
     # Filter dataset for this partition and collect to memory
     partition_data <- worker_dataset %>%
@@ -131,7 +131,7 @@ choose_best_trim_large <- function(
 
   # Export required objects and functions to cluster
   parallel::clusterExport(cl,
-    c("choose_best_trim", "trims", "lambda", "tmp_folder", "process_partition"),
+    c("choose_best_trim", "trims", "lambda", "temp_dir", "process_partition"),
     envir = environment()
   )
   parallel::clusterEvalQ(cl, {
