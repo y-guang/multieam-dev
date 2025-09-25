@@ -167,6 +167,42 @@ find_lognormal_trim_threshold_parallel <- function(
   return(result)
 }
 
+find_lognormal_trim_threshold <- function(
+    flat_df,
+    trims = seq(0, 0.2, by = 0.01),
+    lambda = 0.02,
+    parallel = NULL,
+    chunk_size = NULL,
+    n_cores = NULL) {
+  if (!parallel && (!is.null(chunk_size) || !is.null(n_cores))) {
+    warning("chunk_size and n_cores are ignored when parallel = FALSE")
+  }
+
+  # Determine whether to use parallel processing
+  if (is.null(parallel)) {
+    # Auto-decide based on data size
+    parallel <- nrow(flat_df) > 50000
+  }
+
+  if (parallel) {
+    # Use parallel processing
+    return(find_lognormal_trim_threshold_parallel(
+      flat_df = flat_df,
+      trims = trims,
+      lambda = lambda,
+      chunk_size = chunk_size,
+      n_cores = n_cores
+    ))
+  } else {
+    # Use serial processing
+    return(find_lognormal_trim_threshold_serial(
+      flat_df = flat_df,
+      trims = trims,
+      lambda = lambda
+    ))
+  }
+}
+
 apply_trim <- function(flat_df, best_trim, min_n_used = 0) {
   best_trim %>%
     dplyr::filter(
