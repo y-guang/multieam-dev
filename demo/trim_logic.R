@@ -6,6 +6,7 @@ choose_best_trim <- function(
     trims = seq(0, 0.2, by = 0.01),
     lambda = 0.02) {
   flat_df %>%
+    select(condition_idx, rank_idx, rt) %>%
     # filter out invalid rt
     filter(
       !is.na(rt) & rt > 0 & is.finite(rt)
@@ -76,10 +77,13 @@ choose_best_trim_large <- function(
     n_cores <- parallel::detectCores() - 1
   }
 
-  # Get unique condition indices to determine chunk size
-  unique_conditions <- unique(flat_df$condition_idx)
+  # heuristic for chunk size
   if (is.null(chunk_size)) {
-    chunk_size <- ceiling(length(unique_conditions) / n_cores)
+    unique_conditions <- unique(flat_df$condition_idx)
+    n_unique <- length(unique_conditions)
+    n_partitions <- ceiling(sqrt(n_unique))
+    n_partitions <- max(n_cores, min(n_partitions, n_cores * 10))
+    chunk_size <- ceiling(n_unique / n_partitions)
   }
 
   # Set up temporary folder for intermediate files
@@ -91,8 +95,10 @@ choose_best_trim_large <- function(
 
   # Create partition indices and write partitioned dataset
   flat_df <- flat_df %>%
+    # optimise storage
+    select(condition_idx, rank_idx, rt) %>%
     mutate(
-      partition_idx = dense_rank(condition_idx) %% chunk_size
+      partition_idx = (as.integer(factor(condition_idx)) - 1) %/% chunk_size
     )
   partition_indices <- unique(flat_df$partition_idx)
 
@@ -109,9 +115,10 @@ choose_best_trim_large <- function(
 
   # Function to process each partition
   process_partition <- function(partition_idx) {
-    # Open dataset fresh in each worker (Arrow datasets can't be serialized)
+    # load corresponding partition
+    arrow::set_cpu_count(1)
     worker_dataset <- arrow::open_dataset(tmp_folder, format = "parquet")
-    
+
     # Filter dataset for this partition and collect to memory
     partition_data <- worker_dataset %>%
       filter(partition_idx == !!partition_idx) %>%
@@ -254,7 +261,7 @@ tidy_data <- flat_result
 # best_trim_by_parallel <- choose_best_trim_parallel(flat_df = tidy_data, chunk_size = 100, n_cores = 6)
 
 # Option 3: Large dataset processing with temporary files (OOM solution)
-best_trim_large <- choose_best_trim_large(flat_df = tidy_data, chunk_size = 100)
+best_trim_large <- choose_best_trim_large(flat_df = tidy_data)
 
 # Apply the trim using the results
 trimmed_data <- apply_trim(flat_df = tidy_data, best_trim = best_trim_large, min_n_used = 80)
