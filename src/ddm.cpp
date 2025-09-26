@@ -30,12 +30,6 @@ List accumulate_evidence_ddm(
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
   }
-  if (noise_func == R_NilValue)
-  {
-    stop("noise_func parameter is required and cannot be NULL");
-  }
-  
-  
   // Check if noise function is provided
   if (Rf_isNull(noise_func)) {
     stop("noise_func parameter is required and cannot be NULL");
@@ -64,12 +58,8 @@ List accumulate_evidence_ddm(
   std::vector<double> evidence(n_items, 0.0);
   std::vector<int> item_idx(n_items);
   std::iota(item_idx.begin(), item_idx.end(), 0);
-  std::vector<double> passed_t(n_items);
-  for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
-    passed_t[i] = ndt[i];
-  }
+  std::vector<double> passed_t(ndt.begin(), ndt.end());
   int n_recalled = 0;
-  int n_determined = 0;
   int n_undetermined = n_items;
 
   // Pre-allocate result vectors using STL
@@ -80,11 +70,10 @@ List accumulate_evidence_ddm(
 
   // Noise batching
   NumericVector noise_batch;
-  size_t noise_batch_index = 0;
   double heuristic_steps = max_t / dt / 10;
   size_t noise_batch_X = static_cast<size_t>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
   size_t noise_batch_size = noise_batch_X * n_items;
-  noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
+  size_t noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
 
   do
   {
@@ -98,7 +87,6 @@ List accumulate_evidence_ddm(
         item_idx.erase(item_idx.begin() + i);
         evidence.erase(evidence.begin() + i);
         passed_t.erase(passed_t.begin() + i);
-        n_determined++;
         n_undetermined--;
       }
     }
@@ -128,7 +116,6 @@ List accumulate_evidence_ddm(
         reached_item_idx.push_back(selected_idx + 1);
         rts.push_back(passed_t[i]);
         n_recalled++;
-        n_determined++;
         n_undetermined--;
 
         evidence.erase(evidence.begin() + i);
@@ -159,17 +146,9 @@ List accumulate_evidence_ddm(
   
   // Build output using STL vectors and convert to Rcpp types only at the end
   if (n_recalled > 0) {
-    // Create final vectors with exact size needed
-    IntegerVector output_item_indexes(n_recalled);
-    NumericVector final_rts(n_recalled);
-    IntegerVector final_pos(n_recalled);
-    
-    // Copy data from STL vectors to Rcpp vectors
-    for (int i = 0; i < n_recalled; i++) {
-      output_item_indexes[i] = reached_item_idx[i]; // words are already 1-based
-      final_rts[i] = rts[i]; // rts already include ndt in passed_t
-      final_pos[i] = i + 1; // Position list (1-based)
-    }
+    // Directly create Rcpp vectors from STL vectors
+    IntegerVector output_item_indexes(reached_item_idx.begin(), reached_item_idx.end());
+    NumericVector final_rts(rts.begin(), rts.end());
     
     return List::create(
       Named("item_idx") = output_item_indexes,
