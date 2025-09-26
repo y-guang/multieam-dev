@@ -469,12 +469,17 @@ run_simulation_parallel <- function(
   }
 
   # set default values
-  if (is.null(chunk_size)) {
-    chunk_size <- ceiling(n_condition / n_cores)
-  }
   if (is.null(n_cores)) {
     n_cores <- parallel::detectCores() - 1
   }
+
+  # Heuristic for chunk size
+  if (is.null(chunk_size)) {
+    n_partitions <- ceiling(sqrt(n_condition))
+    n_partitions <- max(n_cores, min(n_partitions, n_cores * 10))
+    chunk_size <- ceiling(n_condition / n_partitions)
+  }
+
   if (is.null(parallel_rand_seed)) {
     parallel_rand_seed <- sample.int(.Machine$integer.max, 1)
   }
