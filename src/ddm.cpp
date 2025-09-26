@@ -2,6 +2,22 @@
 #include <vector>
 using namespace Rcpp;
 
+// Inline function to perform swap-erase on multiple synchronized vectors
+inline void swap_erase_at(size_t index, 
+                         std::vector<int>& item_idx,
+                         std::vector<double>& evidence, 
+                         std::vector<double>& passed_t) {
+  size_t last_idx = evidence.size() - 1;
+  if (index != last_idx) {
+    std::swap(item_idx[index], item_idx[last_idx]);
+    std::swap(evidence[index], evidence[last_idx]);
+    std::swap(passed_t[index], passed_t[last_idx]);
+  }
+  item_idx.pop_back();
+  evidence.pop_back();
+  passed_t.pop_back();
+}
+
 // [[Rcpp::export]]
 List accumulate_evidence_ddm(
   NumericVector A,
@@ -77,17 +93,16 @@ List accumulate_evidence_ddm(
 
   do
   {
-    // check timeout
+    // check timeout - use swap-erase approach
     for (size_t i = 0; i < evidence.size();) {
       if (passed_t[i] < max_t) {
         i++;
       }
       else{
-        // timeout - remove this item from consideration
-        item_idx.erase(item_idx.begin() + i);
-        evidence.erase(evidence.begin() + i);
-        passed_t.erase(passed_t.begin() + i);
+        // timeout - remove this item from consideration using swap-erase
+        swap_erase_at(i, item_idx, evidence, passed_t);
         n_undetermined--;
+        // Don't increment i since we've moved a new element to position i
       }
     }
 
@@ -117,10 +132,7 @@ List accumulate_evidence_ddm(
         rts.push_back(passed_t[i]);
         n_recalled++;
         n_undetermined--;
-
-        evidence.erase(evidence.begin() + i);
-        item_idx.erase(item_idx.begin() + i);
-        passed_t.erase(passed_t.begin() + i);
+        swap_erase_at(i, item_idx, evidence, passed_t);
         // only allow one item to be recalled
         break;
       }

@@ -60,8 +60,9 @@ test_that("run_trial with varying parameters", {
   n_items <- 5
   trial_formulas <- list(
     n_items ~ 5,
-    A ~ seq(n_items),
-    V ~ 1,
+    A ~ 1,
+    # Drift rates that give approx RT of [1, 2, 3, 4, 5]
+    V ~ c(1, 0.5, 1 / 3, 0.25, 0.2),
     ndt ~ distributional::dist_uniform(-1e-5, 1e-5)
   )
 
