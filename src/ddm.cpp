@@ -2,7 +2,7 @@
 #include <vector>
 using namespace Rcpp;
 
-// Inline function to perform swap-erase on multiple synchronized vectors
+// to pop a determined item
 inline void swap_erase_at(size_t index, 
                          std::vector<int>& item_idx,
                          std::vector<double>& evidence, 
@@ -18,6 +18,8 @@ inline void swap_erase_at(size_t index,
   passed_t.pop_back();
 }
 
+//' Simulate evidence accumulation in a drift-diffusion model
+//'
 // [[Rcpp::export]]
 List accumulate_evidence_ddm(
   NumericVector A,
@@ -29,8 +31,11 @@ List accumulate_evidence_ddm(
   String noise_mechanism = "add",
   Function noise_func = R_NilValue
 ) {
+  // heuristic batch config
   constexpr double MIN_BATCH_X = 256;
   constexpr double MAX_BATCH_X = 2048;
+
+  // size of V is the number of items
   int n_items = V.size();
   
   // Input validation
@@ -46,15 +51,12 @@ List accumulate_evidence_ddm(
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
   }
-  // Check if noise function is provided
   if (Rf_isNull(noise_func)) {
     stop("noise_func parameter is required and cannot be NULL");
   }
 
-  // Define noise mechanism enum
-  enum NoiseType { ADDITIVE, MULTIPLICATIVE };
-  
   // Validate noise mechanism and set type
+  enum NoiseType { ADDITIVE, MULTIPLICATIVE };
   NoiseType noise_type;
   if (noise_mechanism == "add") {
     noise_type = ADDITIVE;
@@ -93,13 +95,13 @@ List accumulate_evidence_ddm(
 
   do
   {
-    // check timeout - use swap-erase approach
+    // check timeout
     for (size_t i = 0; i < evidence.size();) {
       if (passed_t[i] < max_t) {
         i++;
       }
       else{
-        // timeout - remove this item from consideration using swap-erase
+        // timeout, remove the item
         swap_erase_at(i, item_idx, evidence, passed_t);
         n_undetermined--;
         // Don't increment i since we've moved a new element to position i
