@@ -550,8 +550,10 @@ run_simulation_parallel <- function(
 
   # export necessary objects to cluster
   parallel::clusterExport(cl, c(
+    # functions
     "run_condition", "run_trial", "evaluate_with_dt",
     "resolve_symbol", "accumulate_evidence_ddm",
+    # env
     "between_trial_formulas", "item_formulas", "n_trial_per_condition",
     "n_items", "max_reached", "max_t", "dt", "noise_mechanism",
     "noise_factory", "trajectories"
