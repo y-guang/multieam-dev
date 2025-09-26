@@ -18,11 +18,13 @@ inline void swap_erase_at(size_t index,
   passed_t.pop_back();
 }
 
-//' Simulate evidence accumulation in a drift-diffusion model
+
+//' Simulate evidence accumulation in a two-bound drift-diffusion model
 //'
 // [[Rcpp::export]]
-List accumulate_evidence_ddm(
-  NumericVector A,
+List accumulate_evidence_ddm_2b(
+  NumericVector A_upper,
+  NumericVector A_lower,
   NumericVector V,
   NumericVector ndt,
   double max_t,
@@ -39,8 +41,14 @@ List accumulate_evidence_ddm(
   int n_items = V.size();
   
   // Input validation
-  if (A.size() > n_items || A.size() < max_reached) {
-    stop("Length of A must be <= number of items and >= max_reached. Got: A.size()=" + std::to_string(A.size()) + ", n_items=" + std::to_string(n_items) + ", max_reached=" + std::to_string(max_reached));
+  if (A_upper.size() > n_items || A_upper.size() < max_reached) {
+    stop("Length of A_upper must be <= number of items and >= max_reached. Got: A_upper.size()=" + std::to_string(A_upper.size()) + ", n_items=" + std::to_string(n_items) + ", max_reached=" + std::to_string(max_reached));
+  }
+  if (A_lower.size() > n_items || A_lower.size() < max_reached) {
+    stop("Length of A_lower must be <= number of items and >= max_reached. Got: A_lower.size()=" + std::to_string(A_lower.size()) + ", n_items=" + std::to_string(n_items) + ", max_reached=" + std::to_string(max_reached));
+  }
+  if (A_upper.size() != A_lower.size()) {
+    stop("A_upper and A_lower must have the same length");
   }
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");
@@ -86,8 +94,10 @@ List accumulate_evidence_ddm(
   // Pre-allocate result vectors using STL
   std::vector<int> reached_item_idx;
   std::vector<double> rts;
+  std::vector<double> reached_evidence; // evidence when boundary reached
   reached_item_idx.reserve(max_reached);
   rts.reserve(max_reached);
+  reached_evidence.reserve(max_reached);
 
   // Noise batching
   NumericVector noise_batch;
@@ -126,20 +136,21 @@ List accumulate_evidence_ddm(
       }
     }
 
-    // check evidence reached threshold
+    
+    // check evidence reached threshold (either upper or lower bound)
     for (size_t i = 0; i < evidence.size();) {
-      if (evidence[i] < A[n_recalled]) {
-        i++;
-      }
-      else {
+      if (evidence[i] >= A_upper[n_recalled] || evidence[i] <= A_lower[n_recalled]) {
         int selected_idx = item_idx[i];
         reached_item_idx.push_back(selected_idx + 1);
         rts.push_back(passed_t[i]);
+        reached_evidence.push_back(evidence[i]);
         n_recalled++;
         n_undetermined--;
         swap_erase_at(i, item_idx, evidence, passed_t);
         // only allow one item to be recalled
         break;
+      } else {
+        i++;
       }
     }
 
@@ -171,14 +182,26 @@ List accumulate_evidence_ddm(
     IntegerVector output_item_indexes(reached_item_idx.begin(), reached_item_idx.end());
     NumericVector final_rts(rts.begin(), rts.end());
     
+    // Convert evidence to choices: +1 for upper bound, -1 for lower bound
+    IntegerVector choices(n_recalled);
+    for (int i = 0; i < n_recalled; i++) {
+      if (reached_evidence[i] >= A_upper[i]) {
+        choices[i] = 1;
+      } else {
+        choices[i] = -1;
+      }
+    }
+    
     return List::create(
       Named("item_idx") = output_item_indexes,
-      Named("rts") = final_rts
+      Named("rts") = final_rts,
+      Named("choices") = choices
     );
   } else {
     return List::create(
       Named("item_idx") = IntegerVector(0),
-      Named("rts") = NumericVector(0)
+      Named("rts") = NumericVector(0),
+      Named("choices") = IntegerVector(0)
     );
   }
 }
