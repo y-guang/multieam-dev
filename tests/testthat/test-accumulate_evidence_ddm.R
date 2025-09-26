@@ -56,7 +56,7 @@ test_that("accumulate_evidence_ddm handles multiple items", {
 })
 
 # Test multiplicative noise mechanism
-test_that("accumulate_evidence_ddm works with multiplicative noise", {
+test_that("accumulate_evidence_ddm works with multiplicative noise on t", {
   result <- accumulate_evidence_ddm(
     A = c(5),
     V = c(1),
@@ -64,7 +64,7 @@ test_that("accumulate_evidence_ddm works with multiplicative noise", {
     max_t = 20,
     dt = 0.01,
     max_reached = 1,
-    noise_mechanism = "mult",
+    noise_mechanism = "mult_t",
     noise_func = function(n, dt) rep(0.1, n)
   )
 
@@ -191,7 +191,7 @@ test_that("accumulate_evidence_ddm validates noise_mechanism parameter", {
       noise_mechanism = "invalid", # Invalid mechanism
       noise_func = function(n, dt) rep(0, n)
     ),
-    "noise_mechanism must be 'add' or 'mult'"
+    "noise_mechanism must be"
   )
 })
 

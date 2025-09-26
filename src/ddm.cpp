@@ -56,14 +56,16 @@ List accumulate_evidence_ddm(
   }
 
   // Validate noise mechanism and set type
-  enum NoiseType { ADDITIVE, MULTIPLICATIVE };
+  enum NoiseType { ADDITIVE, MULTIPLICATIVE_EVIDENCE, MULTIPLICATIVE_T };
   NoiseType noise_type;
   if (noise_mechanism == "add") {
     noise_type = ADDITIVE;
-  } else if (noise_mechanism == "mult") {
-    noise_type = MULTIPLICATIVE;
+  } else if (noise_mechanism == "mult_evidence") {
+    noise_type = MULTIPLICATIVE_EVIDENCE;
+  } else if (noise_mechanism == "mult_t") {
+    noise_type = MULTIPLICATIVE_T;
   } else {
-    stop("noise_mechanism must be 'add' or 'mult'");
+    stop("noise_mechanism must be 'add', 'mult_evidence', or 'mult_t'");
   }
 
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
@@ -77,6 +79,7 @@ List accumulate_evidence_ddm(
   std::vector<int> item_idx(n_items);
   std::iota(item_idx.begin(), item_idx.end(), 0);
   std::vector<double> passed_t(ndt.begin(), ndt.end());
+  double t = 0.0; // Time variable starting from 0
   int n_recalled = 0;
   int n_undetermined = n_items;
 
@@ -141,6 +144,7 @@ List accumulate_evidence_ddm(
     }
 
     // update evidence for remaining items
+    t += dt; // Update time variable
     for (size_t i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
@@ -148,8 +152,11 @@ List accumulate_evidence_ddm(
         case ADDITIVE:
           evidence[i] = evidence[i] + V_dt[item_idx[i]] + noise;
           break;
-        case MULTIPLICATIVE:
+        case MULTIPLICATIVE_EVIDENCE:
           evidence[i] = evidence[i] * (1.0 + noise) + V_dt[item_idx[i]];
+          break;
+        case MULTIPLICATIVE_T:
+          evidence[i] = evidence[i] + V_dt[item_idx[i]] * (1.0 + noise * t);
           break;
         default:
           stop("Unknown noise type");
