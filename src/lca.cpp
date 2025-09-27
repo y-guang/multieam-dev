@@ -104,7 +104,7 @@ List accumulate_evidence_lca(
   rts.reserve(max_reached);
   
   // Noise batching
-  NumericVector noise_batch;
+  arma::vec noise_batch_arma;
   double heuristic_steps = max_t / dt / 10;
   size_t noise_batch_X = static_cast<size_t>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
   size_t noise_batch_size = noise_batch_X * n_items;
@@ -129,13 +129,14 @@ List accumulate_evidence_lca(
     if (noise_batch_index + n_items >= noise_batch_size) {
       try {
         SEXP noise_result = noise_func(noise_batch_size, dt);
-        noise_batch = as<NumericVector>(noise_result);
+        NumericVector noise_batch_r = as<NumericVector>(noise_result);
+        noise_batch_arma = as<arma::vec>(noise_batch_r);
         noise_batch_index = 0;
       } catch (const std::exception& e) {
         stop("Error calling custom noise function: " + std::string(e.what()));
       }
       // size validation
-      if (static_cast<size_t>(noise_batch.size()) != noise_batch_size) {
+      if (noise_batch_arma.n_elem != noise_batch_size) {
         stop("Custom noise function signature: function(n, dt) where n is the number of noise values needed and dt is the time step.");
       }
     }
@@ -161,7 +162,7 @@ List accumulate_evidence_lca(
     for (size_t i = 0; i < passed_t.size(); i++) {
       passed_t[i] += dt;
     }
-    arma::vec noise_arma = as<arma::vec>(noise_batch[Rcpp::Range(noise_batch_index, noise_batch_index + n_items - 1)]);
+    arma::vec noise_arma = noise_batch_arma.subvec(noise_batch_index, noise_batch_index + n_items - 1);
     noise_batch_index += n_items;
     arma::vec Wx = W_arma * evidence_arma;
     arma::vec dx = (V_arma - k * evidence_arma - beta * Wx) * dt + noise_arma;
@@ -169,5 +170,20 @@ List accumulate_evidence_lca(
     evidence_arma = arma::clamp(evidence_arma, 0.0, arma::datum::inf);
   } while (n_undetermined > 0 && n_recalled < max_reached);
 
-  //TODO: return
+  // Build output using STL vectors and convert to Rcpp types only at the end
+  if (n_recalled > 0) {
+    // Directly create Rcpp vectors from STL vectors
+    IntegerVector output_item_indexes(reached_item_idx.begin(), reached_item_idx.end());
+    NumericVector final_rts(rts.begin(), rts.end());
+    
+    return List::create(
+      Named("item_idx") = output_item_indexes,
+      Named("rts") = final_rts
+    );
+  } else {
+    return List::create(
+      Named("item_idx") = IntegerVector(0),
+      Named("rts") = NumericVector(0)
+    );
+  }
 }
