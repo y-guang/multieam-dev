@@ -33,6 +33,7 @@ test_that("run_condition with basic setup", {
     dt = 0.01,
     noise_mechanism = "add",
     noise_factory = noise_factory,
+    model = "ddm",
     trajectories = FALSE
   )
 
@@ -94,6 +95,7 @@ test_that("run_condition with distributional parameters", {
     dt = 0.01,
     noise_mechanism = "add",
     noise_factory = noise_factory,
+    model = "ddm",
     trajectories = TRUE
   )
 
@@ -148,6 +150,7 @@ test_that("run_condition with condition setting input", {
     dt = 0.01,
     noise_mechanism = "add",
     noise_factory = noise_factory,
+    model = "ddm",
     trajectories = FALSE
   )
 
@@ -189,6 +192,7 @@ test_that("run_condition with noise", {
     dt = 0.01,
     noise_mechanism = "add",
     noise_factory = noise_factory,
+    model = "ddm",
     trajectories = FALSE
   )
 

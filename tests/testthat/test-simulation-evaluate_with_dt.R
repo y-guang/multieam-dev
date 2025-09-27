@@ -34,7 +34,7 @@ test_that("run_trial with simple parameters", {
     ndt ~ 0.01
   )
 
-  res <- multieam:::run_trial(
+  res <- multieam:::run_trial_ddm(
     trial_setting = list(),
     item_formulas = trial_formulas,
     n_items = n_items,
@@ -66,7 +66,7 @@ test_that("run_trial with varying parameters", {
     ndt ~ distributional::dist_uniform(-1e-5, 1e-5)
   )
 
-  res <- multieam:::run_trial(
+  res <- multieam:::run_trial_ddm(
     trial_setting = list(),
     item_formulas = trial_formulas,
     n_items = n_items,
