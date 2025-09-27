@@ -72,11 +72,17 @@ List accumulate_evidence_lca(
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");
   }
+  if (A.size() < max_reached) {
+    stop("Length of A must be >= max_reached. Got: A.size()=" + std::to_string(A.size()) + ", max_reached=" + std::to_string(max_reached));
+  }
   if (ndt.size() != n_items) {
     stop("Length of ndt must be equal to number of items");
   }
   if (dt <= 0 || max_t <= 0) {
     stop("dt and max_t must be > 0");
+  }
+  if (W.nrow() != n_items || W.ncol() != n_items) {
+    stop("Dimension of W must be n_items x n_items. Got: W.nrow()=" + std::to_string(W.nrow()) + ", W.ncol()=" + std::to_string(W.ncol()) + ", n_items=" + std::to_string(n_items));
   }
   if (Rf_isNull(noise_func)) {
     stop("noise_func parameter is required and cannot be NULL");
