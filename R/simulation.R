@@ -169,7 +169,7 @@ run_trial_ddm <- function(
 #' @return A list containing the simulation results
 #' @note After evaluation, parameters A_upper, A_lower, V, and ndt are expected
 #' to be numeric vectors of length n_items. And they are matched by position.
-#' So, the first element of A_upper, A_lower, V, and ndt corresponds to the 
+#' So, the first element of A_upper, A_lower, V, and ndt corresponds to the
 #' first item, and so on.
 #' @keywords internal
 run_trial_ddm_2b <- function(
@@ -294,7 +294,8 @@ run_condition <- function(
   # Return a list containing both results and condition parameters
   return(list(
     result = cond_res,
-    cond_params = cond_params
+    cond_params = cond_params,
+    model = model
   ))
 }
 
