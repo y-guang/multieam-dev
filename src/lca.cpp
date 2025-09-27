@@ -3,6 +3,20 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
+// to pop a determined item
+inline void swap_erase_at(size_t index, 
+                         std::vector<int>& item_idx,
+                         std::vector<double>& passed_t) {
+  size_t last_idx = item_idx.size() - 1;
+  if (index != last_idx) {
+    std::swap(item_idx[index], item_idx[last_idx]);
+    std::swap(passed_t[index], passed_t[last_idx]);
+  }
+  item_idx.pop_back();
+  passed_t.pop_back();
+}
+
+
 //' Simulate evidence accumulation using the Leaky Competing Accumulator (LCA) model
 //'
 //' The LCA dynamics are defined as a stochastic ODE in vector form:
@@ -48,14 +62,12 @@ List accumulate_evidence_lca(
   int max_reached,
   Function noise_func = R_NilValue
 ) {
-  // Convert R objects to Armadillo objects
-  arma::mat W_arma = as<arma::mat>(W);
-  arma::vec A_arma = as<arma::vec>(A);
-  arma::vec V_arma = as<arma::vec>(V);
-  arma::vec ndt_arma = as<arma::vec>(ndt);
-  
-  int n_items = V_arma.n_elem;
-  
+  // heuristic batch config
+  constexpr double MIN_BATCH_X = 256;
+  constexpr double MAX_BATCH_X = 2048;
+
+  int n_items = V.size();
+    
   // Basic input validation
   if (max_reached <= 0 || max_reached > n_items) {
     stop("max_reached must be > 0 and <= n_items");
@@ -70,64 +82,92 @@ List accumulate_evidence_lca(
     stop("noise_func parameter is required and cannot be NULL");
   }
   
-  // Initialize state vector x (evidence)
-  arma::vec x = arma::zeros(n_items);
+  // Convert R objects to Armadillo objects
+  arma::mat W_arma = as<arma::mat>(W);
+  arma::vec A_arma = as<arma::vec>(A);
+  arma::vec V_arma = as<arma::vec>(V);
+
+  // status
+  arma::vec evidence_arma = arma::zeros(n_items);
+  // length equals to undetermined items
+  std::vector<double> passed_t(ndt.begin(), ndt.end());
+  std::vector<int> item_idx(n_items);
+  std::iota(item_idx.begin(), item_idx.end(), 0);
+  double t = 0.0;
+  int n_recalled = 0;
+  int n_undetermined = n_items;
+
+  // Pre-allocate result vectors using STL
+  std::vector<int> reached_item_idx;
+  std::vector<double> rts;
+  reached_item_idx.reserve(max_reached);
+  rts.reserve(max_reached);
   
-  // Initialize time tracking
-  double current_time = 0.0;
-  
-  // Track which items have reached threshold
-  std::vector<int> reached_items;
-  std::vector<double> reaction_times;
-  std::vector<bool> item_determined(n_items, false);
-  int n_reached = 0;
-  
-  while (n_reached < max_reached && current_time < max_t) {
-    current_time += dt;
-    
-    // Get noise for all items (even determined ones participate in matrix calculations)
-    NumericVector noise_vec;
-    try {
-      SEXP noise_result = noise_func(n_items, dt);
-      noise_vec = as<NumericVector>(noise_result);
-    } catch (const std::exception& e) {
-      stop("Error calling noise function: " + std::string(e.what()));
-    }
-    arma::vec noise_arma = as<arma::vec>(noise_vec);
-    
-    // Apply LCA update equation for all items: x_i(t+dt) = x_i(t) + (v_i - k*x_i(t) - beta*(W*x)_i)*dt + noise
-    arma::vec Wx = W_arma * x;
-    arma::vec dx = (V_arma - k * x - beta * Wx) * dt + noise_arma;
-    x = x + dx;
-    
-    // Ensure non-negative evidence
-    x = arma::clamp(x, 0.0, arma::datum::inf);
-    
-    // Check for threshold crossings (only for items not yet determined)
-    for (int i = 0; i < n_items; i++) {
-      if (!item_determined[i] && x(i) >= A_arma(n_reached)) {
-        reached_items.push_back(i + 1); // R indexing (1-based)
-        reaction_times.push_back(current_time + ndt_arma(i)); // Add non-decision time to response time
-        item_determined[i] = true;
-        n_reached++;
-        break; // Only one item can be recalled per time step
+  // Noise batching
+  NumericVector noise_batch;
+  double heuristic_steps = max_t / dt / 10;
+  size_t noise_batch_X = static_cast<size_t>(std::max(MIN_BATCH_X, std::min(MAX_BATCH_X, heuristic_steps)));
+  size_t noise_batch_size = noise_batch_X * n_items;
+  size_t noise_batch_index = noise_batch_size + 1; // to trigger initial noise generation
+
+  do
+  {
+    // check timeout
+    for (size_t i = 0; i < item_idx.size();) {
+      if (passed_t[i] < max_t) {
+        i++;
+      }
+      else{
+        // timeout, remove the item
+        swap_erase_at(i, item_idx, passed_t);
+        n_undetermined--;
+        // Don't increment i since we've moved a new element to position i
       }
     }
-  }
-  
-  // Convert results back to R
-  if (n_reached > 0) {
-    IntegerVector item_indices(reached_items.begin(), reached_items.end());
-    NumericVector rts(reaction_times.begin(), reaction_times.end());
-    
-    return List::create(
-      Named("item_idx") = item_indices,
-      Named("rts") = rts
-    );
-  } else {
-    return List::create(
-      Named("item_idx") = IntegerVector(0),
-      Named("rts") = NumericVector(0)
-    );
-  }
+
+    // check enough buffer
+    if (noise_batch_index + n_items >= noise_batch_size) {
+      try {
+        SEXP noise_result = noise_func(noise_batch_size, dt);
+        noise_batch = as<NumericVector>(noise_result);
+        noise_batch_index = 0;
+      } catch (const std::exception& e) {
+        stop("Error calling custom noise function: " + std::string(e.what()));
+      }
+      // size validation
+      if (static_cast<size_t>(noise_batch.size()) != noise_batch_size) {
+        stop("Custom noise function signature: function(n, dt) where n is the number of noise values needed and dt is the time step.");
+      }
+    }
+
+    // check evidence reached threshold
+    for (size_t i = 0; i < item_idx.size();) {
+      int selected_idx = item_idx[i];
+      if (evidence_arma(selected_idx) < A_arma(n_recalled)) {
+        i++;
+      } else {
+        reached_item_idx.push_back(selected_idx + 1);
+        rts.push_back(passed_t[i]);
+        n_recalled++;
+        n_undetermined--;
+        swap_erase_at(i, item_idx, passed_t);
+        // only allow one item to be recalled
+        break;
+      }
+    }
+
+    // update evidence for all items
+    t += dt;
+    for (size_t i = 0; i < passed_t.size(); i++) {
+      passed_t[i] += dt;
+    }
+    arma::vec noise_arma = as<arma::vec>(noise_batch[Rcpp::Range(noise_batch_index, noise_batch_index + n_items - 1)]);
+    noise_batch_index += n_items;
+    arma::vec Wx = W_arma * evidence_arma;
+    arma::vec dx = (V_arma - k * evidence_arma - beta * Wx) * dt + noise_arma;
+    evidence_arma += dx;
+    evidence_arma = arma::clamp(evidence_arma, 0.0, arma::datum::inf);
+  } while (n_undetermined > 0 && n_recalled < max_reached);
+
+  //TODO: return
 }
