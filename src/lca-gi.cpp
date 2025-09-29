@@ -27,7 +27,8 @@ inline void swap_erase_at(size_t index,
   inhibition_beta_dt.pop_back();
 }
 
-//' Simulate evidence accumulation in a drift-diffusion model
+//' Simulate evidence accumulation in a leaky competing accumulator model with
+//' Global Inhibition (LCA-GI)
 //'
 // [[Rcpp::export]]
 List accumulate_evidence_lca_gi(
