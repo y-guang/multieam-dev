@@ -6,16 +6,19 @@ using namespace Rcpp;
 inline void swap_erase_at(size_t index, 
                          std::vector<int>& item_idx,
                          std::vector<double>& evidence, 
-                         std::vector<double>& passed_t) {
+                         std::vector<double>& passed_t,
+                         std::vector<double>& V_dt) {
   size_t last_idx = evidence.size() - 1;
   if (index != last_idx) {
     std::swap(item_idx[index], item_idx[last_idx]);
     std::swap(evidence[index], evidence[last_idx]);
     std::swap(passed_t[index], passed_t[last_idx]);
+    std::swap(V_dt[index], V_dt[last_idx]);
   }
   item_idx.pop_back();
   evidence.pop_back();
   passed_t.pop_back();
+  V_dt.pop_back();
 }
 
 //' Simulate evidence accumulation in a drift-diffusion model
@@ -105,7 +108,7 @@ List accumulate_evidence_ddm(
       }
       else{
         // timeout, remove the item
-        swap_erase_at(i, item_idx, evidence, passed_t);
+        swap_erase_at(i, item_idx, evidence, passed_t, V_dt);
         n_undetermined--;
         // Don't increment i since we've moved a new element to position i
       }
@@ -137,7 +140,7 @@ List accumulate_evidence_ddm(
         rt.push_back(passed_t[i]);
         n_recalled++;
         n_undetermined--;
-        swap_erase_at(i, item_idx, evidence, passed_t);
+        swap_erase_at(i, item_idx, evidence, passed_t, V_dt);
         // only allow one item to be recalled
         break;
       }
@@ -150,13 +153,13 @@ List accumulate_evidence_ddm(
       double noise = noise_batch[noise_batch_index + i];
       switch (noise_type) {
         case ADDITIVE:
-          evidence[i] = evidence[i] + V_dt[item_idx[i]] + noise;
+          evidence[i] = evidence[i] + V_dt[i] + noise;
           break;
         case MULTIPLICATIVE_EVIDENCE:
-          evidence[i] = evidence[i] * (1.0 + noise) + V_dt[item_idx[i]];
+          evidence[i] = evidence[i] * (1.0 + noise) + V_dt[i];
           break;
         case MULTIPLICATIVE_T:
-          evidence[i] = evidence[i] + V_dt[item_idx[i]] * (1.0 + noise * t);
+          evidence[i] = evidence[i] + V_dt[i] * (1.0 + noise * t);
           break;
         default:
           stop("Unknown noise type");
