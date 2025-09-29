@@ -93,10 +93,10 @@ List accumulate_evidence_ddm_2b(
 
   // Pre-allocate result vectors using STL
   std::vector<int> reached_item_idx;
-  std::vector<double> rts;
+  std::vector<double> rt;
   std::vector<double> reached_evidence; // evidence when boundary reached
   reached_item_idx.reserve(max_reached);
-  rts.reserve(max_reached);
+  rt.reserve(max_reached);
   reached_evidence.reserve(max_reached);
 
   // Noise batching
@@ -142,7 +142,7 @@ List accumulate_evidence_ddm_2b(
       if (evidence[i] >= A_upper[n_recalled] || evidence[i] <= A_lower[n_recalled]) {
         int selected_idx = item_idx[i];
         reached_item_idx.push_back(selected_idx + 1);
-        rts.push_back(passed_t[i]);
+        rt.push_back(passed_t[i]);
         reached_evidence.push_back(evidence[i]);
         n_recalled++;
         n_undetermined--;
@@ -180,28 +180,28 @@ List accumulate_evidence_ddm_2b(
   if (n_recalled > 0) {
     // Directly create Rcpp vectors from STL vectors
     IntegerVector output_item_indexes(reached_item_idx.begin(), reached_item_idx.end());
-    NumericVector final_rts(rts.begin(), rts.end());
+    NumericVector final_rt(rt.begin(), rt.end());
     
-    // Convert evidence to choices: +1 for upper bound, -1 for lower bound
-    IntegerVector choices(n_recalled);
+    // Convert evidence to choice: +1 for upper bound, -1 for lower bound
+    IntegerVector choice(n_recalled);
     for (int i = 0; i < n_recalled; i++) {
       if (reached_evidence[i] >= A_upper[i]) {
-        choices[i] = 1;
+        choice[i] = 1;
       } else {
-        choices[i] = -1;
+        choice[i] = -1;
       }
     }
     
     return List::create(
       Named("item_idx") = output_item_indexes,
-      Named("rts") = final_rts,
-      Named("choices") = choices
+      Named("rt") = final_rt,
+      Named("choice") = choice
     );
   } else {
     return List::create(
       Named("item_idx") = IntegerVector(0),
-      Named("rts") = NumericVector(0),
-      Named("choices") = IntegerVector(0)
+      Named("rt") = NumericVector(0),
+      Named("choice") = IntegerVector(0)
     );
   }
 }

@@ -1,4 +1,4 @@
-test_that("accumulate_evidence_lca_gi returns expected output", {
+test_that("acc  expect_true(\"rt\" %in% names(result))mulate_evidence_lca_gi returns expected output", {
   result <- accumulate_evidence_lca_gi(
     A = c(10),
     V = c(1),
@@ -12,7 +12,7 @@ test_that("accumulate_evidence_lca_gi returns expected output", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
 })
 
 test_that(
@@ -31,8 +31,8 @@ test_that(
     )
 
     expect_true("item_idx" %in% names(result))
-    expect_true("rts" %in% names(result))
-    expect_true(length(result$rts) == 0)
+    expect_true("rt" %in% names(result))
+    expect_true(length(result$rt) == 0)
     expect_true(length(result$item_idx) == 0)
   }
 )
@@ -53,9 +53,9 @@ test_that("accumulate_evidence_lca_gi handles multiple items", {
 
   expect_true(is.list(result))
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   expect_true(length(result$item_idx) <= 3)
-  expect_true(length(result$rts) == length(result$item_idx))
+  expect_true(length(result$rt) == length(result$item_idx))
 })
 
 # Test with positive noise favoring accumulation
@@ -73,7 +73,7 @@ test_that("accumulate_evidence_lca_gi works with positive noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   # With positive noise, should help reach threshold
   if (length(result$item_idx) > 0) {
     expect_true(result$item_idx[1] == 1) # Should reach threshold
@@ -95,7 +95,7 @@ test_that("accumulate_evidence_lca_gi works with negative noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   # With negative noise, may still reach threshold but takes longer
 })
 
@@ -295,7 +295,7 @@ test_that("accumulate_evidence_lca_gi works with random noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
 })
 
 # Test timeout behavior with multiple items
@@ -313,9 +313,10 @@ test_that("accumulate_evidence_lca_gi handles timeout correctly", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   expect_true(length(result$item_idx) == 0) # Should timeout before reaching
-  expect_true(length(result$rts) == 0)
+
+  expect_true(length(result$rt) == 0)
 })
 
 # Test max_reached limit
@@ -333,9 +334,9 @@ test_that("accumulate_evidence_lca_gi respects max_reached limit", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   expect_true(length(result$item_idx) <= 1) # Should not exceed max_reached
-  expect_true(length(result$rts) <= 1)
+  expect_true(length(result$rt) <= 1)
 })
 
 # Test item indexing (1-based)
@@ -372,8 +373,8 @@ test_that("accumulate_evidence_lca_gi reaction times include ndt", {
     noise_func = function(n, dt) rep(0, n)
   )
 
-  if (length(result$rts) > 0) {
-    expect_true(result$rts[1] >= 2) # RT should include ndt
+  if (length(result$rt) > 0) {
+    expect_true(result$rt[1] >= 2) # RT should include ndt
   }
 })
 
@@ -404,8 +405,8 @@ test_that("accumulate_evidence_lca_gi leakage affects accumulation", {
     max_reached = 1,
     noise_func = function(n, dt) rep(0, n)
   )
-  expect_equal(length(result_high_leak$rts), 0) # Should not reach
-  expect_equal(length(result_low_leak$rts), 1)  # Should reach
+  expect_equal(length(result_high_leak$rt), 0) # Should not reach
+  expect_equal(length(result_low_leak$rt), 1)  # Should reach
 })
 
 # Test inhibition effect (beta parameter)
@@ -462,7 +463,7 @@ test_that("accumulate_evidence_lca_gi maintains evidence floor at zero", {
 
   # Should handle negative influences gracefully (evidence floored at 0)
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
 })
 
 # Test sequential accumulation with different thresholds
@@ -482,7 +483,7 @@ test_that("accumulate_evidence_lca_gi sequential thresholds work correctly", {
   if (length(result$item_idx) > 1) {
     # First item to reach should be the one with lowest threshold requirement
     # Times should be ordered (first threshold reached first)
-    expect_true(all(diff(result$rts) >= 0)) # Non-decreasing reaction times
+    expect_true(all(diff(result$rt) >= 0)) # Non-decreasing reaction times
   }
 })
 
@@ -501,7 +502,7 @@ test_that("accumulate_evidence_lca_gi handles asymmetric item parameters", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
   # Item 2 has higher drift but also higher threshold and inhibition
   # Item 1 has lower threshold but also lower drift and higher ndt
   # The outcome depends on the balance of these factors
@@ -525,7 +526,7 @@ test_that("accumulate_evidence_lca_gi handles zero drift rate", {
   # With zero drift, might reach threshold due to positive noise
   # or might not due to leakage and negative noise
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
+  expect_true("rt" %in% names(result))
 })
 
 # Test calculation consistency for simple case
@@ -542,10 +543,10 @@ test_that("accumulate_evidence_lca_gi calculation, single item, no competition",
     noise_func = function(n, dt) rep(0, n)
   )
 
-  expect_equal(length(result$rts), 1)
+  expect_equal(length(result$rt), 1)
   expect_equal(result$item_idx, 1)
   # With low leakage and no competition, should reach threshold
   # Time should be reasonable (ndt + accumulation time)
-  expect_true(result$rts[1] >= 2) # At least ndt
-  expect_true(result$rts[1] < 30) # Should reach before timeout
+  expect_true(result$rt[1] >= 2) # At least ndt
+  expect_true(result$rt[1] < 30) # Should reach before timeout
 })

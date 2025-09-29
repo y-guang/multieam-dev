@@ -85,9 +85,9 @@ List accumulate_evidence_ddm(
 
   // Pre-allocate result vectors using STL
   std::vector<int> reached_item_idx;
-  std::vector<double> rts;
+  std::vector<double> rt;
   reached_item_idx.reserve(max_reached);
-  rts.reserve(max_reached);
+  rt.reserve(max_reached);
 
   // Noise batching
   NumericVector noise_batch;
@@ -134,7 +134,7 @@ List accumulate_evidence_ddm(
       else {
         int selected_idx = item_idx[i];
         reached_item_idx.push_back(selected_idx + 1);
-        rts.push_back(passed_t[i]);
+        rt.push_back(passed_t[i]);
         n_recalled++;
         n_undetermined--;
         swap_erase_at(i, item_idx, evidence, passed_t);
@@ -169,16 +169,16 @@ List accumulate_evidence_ddm(
   if (n_recalled > 0) {
     // Directly create Rcpp vectors from STL vectors
     IntegerVector output_item_indexes(reached_item_idx.begin(), reached_item_idx.end());
-    NumericVector final_rts(rts.begin(), rts.end());
+    NumericVector final_rt(rt.begin(), rt.end());
     
     return List::create(
       Named("item_idx") = output_item_indexes,
-      Named("rts") = final_rts
+      Named("rt") = final_rt
     );
   } else {
     return List::create(
       Named("item_idx") = IntegerVector(0),
-      Named("rts") = NumericVector(0)
+      Named("rt") = NumericVector(0)
     );
   }
 }

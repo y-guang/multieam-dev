@@ -12,8 +12,8 @@ test_that("accumulate_evidence_ddm_2b returns expected output", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
 })
 
 test_that(
@@ -32,11 +32,11 @@ test_that(
     )
 
     expect_true("item_idx" %in% names(result))
-    expect_true("rts" %in% names(result))
-    expect_true("choices" %in% names(result))
-    expect_true(length(result$rts) == 0)
+    expect_true("rt" %in% names(result))
+    expect_true("choice" %in% names(result))
+    expect_true(length(result$rt) == 0)
     expect_true(length(result$item_idx) == 0)
-    expect_true(length(result$choices) == 0)
+    expect_true(length(result$choice) == 0)
   }
 )
 
@@ -56,11 +56,11 @@ test_that("accumulate_evidence_ddm_2b handles multiple items", {
 
   expect_true(is.list(result))
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
   expect_true(length(result$item_idx) <= 3)
-  expect_true(length(result$rts) == length(result$item_idx))
-  expect_true(length(result$choices) == length(result$item_idx))
+  expect_true(length(result$rt) == length(result$item_idx))
+  expect_true(length(result$choice) == length(result$item_idx))
 })
 
 # Test multiplicative evidence noise mechanism
@@ -78,8 +78,8 @@ test_that("accumulate_evidence_ddm_2b works with multiplicative evidence noise",
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
 })
 
 # Test multiplicative noise mechanism on t
@@ -97,8 +97,8 @@ test_that("accumulate_evidence_ddm_2b works with multiplicative noise on t", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
 })
 
 # Test with positive noise favoring upper bound
@@ -116,11 +116,11 @@ test_that("accumulate_evidence_ddm_2b works with positive noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
   # With positive noise, should reach upper
-  if (length(result$choices) > 0) {
-    expect_true(result$choices[1] == 1) # Should reach upper bound
+  if (length(result$choice) > 0) {
+    expect_true(result$choice[1] == 1) # Should reach upper bound
   }
 })
 
@@ -139,11 +139,11 @@ test_that("accumulate_evidence_ddm_2b works with negative noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
   # With strong negative noise, should reach lower threshold
-  if (length(result$choices) > 0) {
-    expect_true(result$choices[1] == -1) # Should reach lower bound
+  if (length(result$choice) > 0) {
+    expect_true(result$choice[1] == -1) # Should reach lower bound
   }
 })
 
@@ -306,8 +306,8 @@ test_that("accumulate_evidence_ddm_2b works with random noise", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
 })
 
 # Test timeout behavior with multiple items
@@ -325,11 +325,11 @@ test_that("accumulate_evidence_ddm_2b handles timeout correctly", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
   expect_true(length(result$item_idx) == 0) # Should timeout before reaching
-  expect_true(length(result$rts) == 0)
-  expect_true(length(result$choices) == 0)
+  expect_true(length(result$rt) == 0)
+  expect_true(length(result$choice) == 0)
 })
 
 # Test max_reached limit
@@ -347,11 +347,11 @@ test_that("accumulate_evidence_ddm_2b respects max_reached limit", {
   )
 
   expect_true("item_idx" %in% names(result))
-  expect_true("rts" %in% names(result))
-  expect_true("choices" %in% names(result))
+  expect_true("rt" %in% names(result))
+  expect_true("choice" %in% names(result))
   expect_true(length(result$item_idx) <= 1) # Should not exceed max_reached
-  expect_true(length(result$rts) <= 1)
-  expect_true(length(result$choices) <= 1)
+  expect_true(length(result$rt) <= 1)
+  expect_true(length(result$choice) <= 1)
 })
 
 # Test item indexing (1-based)
@@ -388,13 +388,13 @@ test_that("accumulate_evidence_ddm_2b reaction times include ndt", {
     noise_func = function(n, dt) rep(0, n)
   )
 
-  if (length(result$rts) > 0) {
-    expect_true(result$rts[1] >= 2) # RT should include ndt
+  if (length(result$rt) > 0) {
+    expect_true(result$rt[1] >= 2) # RT should include ndt
   }
 })
 
-# Test choices are correct for bounds reached
-test_that("accumulate_evidence_ddm_2b choices correctly indicate bound reached", {
+# Test choice are correct for bounds reached
+test_that("accumulate_evidence_ddm_2b choice correctly indicate bound reached", {
   # Test upper bound with positive drift
   result_upper <- accumulate_evidence_ddm_2b(
     A_upper = c(5),
@@ -408,8 +408,8 @@ test_that("accumulate_evidence_ddm_2b choices correctly indicate bound reached",
     noise_func = function(n, dt) rep(0, n)
   )
 
-  if (length(result_upper$choices) > 0) {
-    expect_true(result_upper$choices[1] == 1) # Should reach upper bound
+  if (length(result_upper$choice) > 0) {
+    expect_true(result_upper$choice[1] == 1) # Should reach upper bound
   }
 
   # Test lower bound with negative drift
@@ -425,8 +425,8 @@ test_that("accumulate_evidence_ddm_2b choices correctly indicate bound reached",
     noise_func = function(n, dt) rep(0, n)
   )
 
-  if (length(result_lower$choices) > 0) {
-    expect_true(result_lower$choices[1] == -1) # Should reach lower bound
+  if (length(result_lower$choice) > 0) {
+    expect_true(result_lower$choice[1] == -1) # Should reach lower bound
   }
 })
 
@@ -444,10 +444,10 @@ test_that("accumulate_evidence_ddm_2b calculation, linear accumulation, single i
     noise_func = function(n, dt) rep(0, n)
   )
 
-  expect_equal(length(result$rts), 1)
+  expect_equal(length(result$rt), 1)
   expect_equal(result$item_idx, 1)
-  expect_equal(result$choices, 1) # Upper bound
-  expect_equal(result$rts, 2 + 10 / 1, tolerance = 0.2)
+  expect_equal(result$choice, 1) # Upper bound
+  expect_equal(result$rt, 2 + 10 / 1, tolerance = 0.2)
 })
 
 # Test simple calculation for lower bound
@@ -464,10 +464,10 @@ test_that("accumulate_evidence_ddm_2b calculation, linear accumulation, single i
     noise_func = function(n, dt) rep(0, n)
   )
 
-  expect_equal(length(result$rts), 1)
+  expect_equal(length(result$rt), 1)
   expect_equal(result$item_idx, 1)
-  expect_equal(result$choices, -1) # Lower bound
-  expect_equal(result$rts, 2 + 10 / 1, tolerance = 0.2) # Same time, different direction
+  expect_equal(result$choice, -1) # Lower bound
+  expect_equal(result$rt, 2 + 10 / 1, tolerance = 0.2) # Same time, different direction
 })
 
 # Test list linear accumulation with both bounds
@@ -489,12 +489,12 @@ test_that("accumulate_evidence_ddm_2b calculation, list linear accumulation", {
     noise_func = function(n, dt) rep(0, n)
   )
 
-  expect_equal(length(result$rts), 4)
+  expect_equal(length(result$rt), 4)
   # Should be in order of fastest (highest absolute drift)
   expect_equal(result$item_idx, c(4, 3, 2, 1))
-  # Check choices match drift directions
-  expect_equal(result$choices, c(-1, -1, 1, 1)) # neg drift -> lower, pos drift -> upper
-  expect_equal(result$rts, expected_values[c(4, 3, 2, 1)], tolerance = 0.02)
+  # Check choice match drift directions
+  expect_equal(result$choice, c(-1, -1, 1, 1)) # neg drift -> lower, pos drift -> upper
+  expect_equal(result$rt, expected_values[c(4, 3, 2, 1)], tolerance = 0.02)
 })
 
 # Test average rt close to prediction with two bounds
@@ -506,7 +506,7 @@ test_that("accumulate_evidence_ddm_2b average rt close to prediction", {
   A_lower <- rep(-10, n_items)
   V <- seq(0.5, 5, length.out = n_items)
   ndt <- rep(1, n_items)
-  all_rts <- c()
+  all_reaction_time <- c()
 
   for (i in 1:n_trials) {
     result <- accumulate_evidence_ddm_2b(
@@ -520,13 +520,13 @@ test_that("accumulate_evidence_ddm_2b average rt close to prediction", {
       noise_mechanism = "add",
       noise_func = function(n, dt) rnorm(n, 0, sqrt(dt))
     )
-    all_rts <- c(all_rts, result$rts)
+    all_reaction_time <- c(all_reaction_time, result$rt)
   }
 
-  predicted_rts <- ndt + A_upper / V
-  avg_predicted_rt <- mean(predicted_rts)
-  avg_simulated_rt <- mean(all_rts)
-  expect_true(abs(avg_simulated_rt - avg_predicted_rt) < 1) # Within 1 second
+  predicted_reaction_time <- ndt + A_upper / V
+  avg_predicted_reaction_time <- mean(predicted_reaction_time)
+  avg_simulated_reaction_time <- mean(all_reaction_time)
+  expect_true(abs(avg_simulated_reaction_time - avg_predicted_reaction_time) < 1) # Within 1 second
 })
 
 # Test symmetric bounds with zero drift
@@ -546,8 +546,8 @@ test_that("accumulate_evidence_ddm_2b with symmetric bounds and zero drift", {
 
   # With zero drift and symmetric bounds, should eventually reach one bound
   # due to random walk
-  expect_true("choices" %in% names(result))
-  if (length(result$choices) > 0) {
-    expect_true(result$choices[1] %in% c(-1, 1)) # Should reach either bound
+  expect_true("choice" %in% names(result))
+  if (length(result$choice) > 0) {
+    expect_true(result$choice[1] %in% c(-1, 1)) # Should reach either bound
   }
 })

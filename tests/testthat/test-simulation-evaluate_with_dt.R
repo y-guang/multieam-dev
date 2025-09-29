@@ -50,7 +50,7 @@ test_that("run_trial with simple parameters", {
     trajectories = TRUE
   )
 
-  expect_equal(length(res$rts), n_items)
+  expect_equal(length(res$rt), n_items)
   expect_equal(length(res$item_idx), n_items)
   expect_equal(length(res$.item_params$A), n_items)
   expect_equal(length(res$.item_params$V), n_items)
@@ -82,10 +82,10 @@ test_that("run_trial with varying parameters", {
     trajectories = TRUE
   )
 
-  expect_equal(length(res$rts), n_items)
+  expect_equal(length(res$rt), n_items)
   expect_equal(length(res$item_idx), n_items)
   expect_equal(length(res$.item_params$A), n_items)
   expect_true(all(sapply(res$.item_params, length) == n_items))
   expect_equal(res$item_idx, seq(1, n_items))
-  expect_equal(res$rts, seq(1, n_items), tolerance = 1e-1)
+  expect_equal(res$rt, seq(1, n_items), tolerance = 1e-1)
 })

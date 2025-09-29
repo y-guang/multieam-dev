@@ -48,9 +48,9 @@ test_that("run_condition with basic setup", {
   # Check each trial result
   for (trial in res$result) {
     expect_true(is.list(trial))
-    expect_true("rts" %in% names(trial))
+    expect_true("rt" %in% names(trial))
     expect_true("item_idx" %in% names(trial))
-    expect_equal(length(trial$rts), n_items)
+    expect_equal(length(trial$rt), n_items)
     expect_equal(length(trial$item_idx), n_items)
   }
 
