@@ -165,7 +165,7 @@ List accumulate_evidence_lca_gi(
     // calculate total inhibition
     double inhibition_sum = 0.0;
     for (size_t i = 0; i < evidence.size(); i++) {
-      inhibition_sum += evidence[i] * inhibition_beta_dt[i];
+      inhibition_sum += evidence[i];
     }
 
     // update evidence for remaining items
@@ -173,7 +173,9 @@ List accumulate_evidence_lca_gi(
     for (size_t i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
-      evidence[i] = evidence_retention_dt[i] * evidence[i] + V_dt[i] - inhibition_sum + noise;
+      evidence[i] = std::max(0.0,
+        evidence_retention_dt[i] * evidence[i] + V_dt[i] - inhibition_sum * inhibition_beta_dt[i] + noise
+      );
     }
     noise_batch_index += evidence.size();
   } while (n_undetermined > 0 && n_recalled < max_reached);
