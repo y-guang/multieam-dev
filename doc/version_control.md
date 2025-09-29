@@ -9,6 +9,7 @@ each stable branch update
 
 ```bash
 git fetch upstream main
+git rm .
 git checkout upstream/main -- .
 git add -A
 ```
