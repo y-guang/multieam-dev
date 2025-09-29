@@ -6,16 +6,25 @@ using namespace Rcpp;
 inline void swap_erase_at(size_t index, 
                          std::vector<int>& item_idx,
                          std::vector<double>& evidence, 
-                         std::vector<double>& passed_t) {
+                         std::vector<double>& passed_t,
+                         std::vector<double>& V_dt,
+                         std::vector<double>& evidence_retention_dt,
+                         std::vector<double>& inhibition_beta_dt) {
   size_t last_idx = evidence.size() - 1;
   if (index != last_idx) {
     std::swap(item_idx[index], item_idx[last_idx]);
     std::swap(evidence[index], evidence[last_idx]);
     std::swap(passed_t[index], passed_t[last_idx]);
+    std::swap(V_dt[index], V_dt[last_idx]);
+    std::swap(evidence_retention_dt[index], evidence_retention_dt[last_idx]);
+    std::swap(inhibition_beta_dt[index], inhibition_beta_dt[last_idx]);
   }
   item_idx.pop_back();
   evidence.pop_back();
   passed_t.pop_back();
+  V_dt.pop_back();
+  evidence_retention_dt.pop_back();
+  inhibition_beta_dt.pop_back();
 }
 
 //' Simulate evidence accumulation in a drift-diffusion model
@@ -25,10 +34,11 @@ List accumulate_evidence_lca_gi(
   NumericVector A,
   NumericVector V,
   NumericVector ndt,
+  NumericVector beta,
+  NumericVector k,
   double max_t,
   double dt,
   int max_reached,
-  String noise_mechanism = "add",
   Function noise_func = R_NilValue
 ) {
   // heuristic batch config
@@ -54,24 +64,33 @@ List accumulate_evidence_lca_gi(
   if (Rf_isNull(noise_func)) {
     stop("noise_func parameter is required and cannot be NULL");
   }
-
-  // Validate noise mechanism and set type
-  enum NoiseType { ADDITIVE, MULTIPLICATIVE_EVIDENCE, MULTIPLICATIVE_T };
-  NoiseType noise_type;
-  if (noise_mechanism == "add") {
-    noise_type = ADDITIVE;
-  } else if (noise_mechanism == "mult_evidence") {
-    noise_type = MULTIPLICATIVE_EVIDENCE;
-  } else if (noise_mechanism == "mult_t") {
-    noise_type = MULTIPLICATIVE_T;
-  } else {
-    stop("noise_mechanism must be 'add', 'mult_evidence', or 'mult_t'");
+  if (beta.size() != n_items) {
+    stop("Length of beta must be equal to number of items");
+  }
+  if (k.size() != n_items) {
+    stop("Length of k must be equal to number of items");
   }
 
   // Copy V to STL vector and ensure values are positive (set negative values to small positive)
   std::vector<double> V_dt(n_items);
   for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
     V_dt[i] = V[i] * dt;
+  }
+  // Convert k to dt-scaled retention
+  std::vector<double> evidence_retention_dt(n_items);
+  for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
+    evidence_retention_dt[i] = 1.0 + (beta[i] - k[i]) * dt;
+    if (evidence_retention_dt[i] < 0.0) {
+      evidence_retention_dt[i] = 0.0;
+    }
+  }
+  // Convert beta to dt-scaled inhibition
+  std::vector<double> inhibition_beta_dt(n_items);
+  for (size_t i = 0; i < static_cast<size_t>(n_items); i++) {
+    inhibition_beta_dt[i] = beta[i] * dt;
+    if (inhibition_beta_dt[i] < 0.0) {
+      inhibition_beta_dt[i] = 0.0;
+    }
   }
 
   // Initialize status
@@ -105,7 +124,7 @@ List accumulate_evidence_lca_gi(
       }
       else{
         // timeout, remove the item
-        swap_erase_at(i, item_idx, evidence, passed_t);
+        swap_erase_at(i, item_idx, evidence, passed_t, V_dt, evidence_retention_dt, inhibition_beta_dt);
         n_undetermined--;
         // Don't increment i since we've moved a new element to position i
       }
@@ -137,10 +156,16 @@ List accumulate_evidence_lca_gi(
         rts.push_back(passed_t[i]);
         n_recalled++;
         n_undetermined--;
-        swap_erase_at(i, item_idx, evidence, passed_t);
+        swap_erase_at(i, item_idx, evidence, passed_t, V_dt, evidence_retention_dt, inhibition_beta_dt);
         // only allow one item to be recalled
         break;
       }
+    }
+
+    // calculate total inhibition
+    double inhibition_sum = 0.0;
+    for (size_t i = 0; i < evidence.size(); i++) {
+      inhibition_sum += evidence[i] * inhibition_beta_dt[i];
     }
 
     // update evidence for remaining items
@@ -148,19 +173,7 @@ List accumulate_evidence_lca_gi(
     for (size_t i = 0; i < evidence.size(); i++) {
       passed_t[i] += dt;
       double noise = noise_batch[noise_batch_index + i];
-      switch (noise_type) {
-        case ADDITIVE:
-          evidence[i] = evidence[i] + V_dt[item_idx[i]] + noise;
-          break;
-        case MULTIPLICATIVE_EVIDENCE:
-          evidence[i] = evidence[i] * (1.0 + noise) + V_dt[item_idx[i]];
-          break;
-        case MULTIPLICATIVE_T:
-          evidence[i] = evidence[i] + V_dt[item_idx[i]] * (1.0 + noise * t);
-          break;
-        default:
-          stop("Unknown noise type");
-      }
+      evidence[i] = evidence_retention_dt[i] * evidence[i] + V_dt[i] - inhibition_sum + noise;
     }
     noise_batch_index += evidence.size();
   } while (n_undetermined > 0 && n_recalled < max_reached);
