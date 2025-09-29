@@ -210,6 +210,63 @@ run_trial_ddm_2b <- function(
 }
 
 
+#' Run a single trial of the LCA-GI simulation
+#'
+#' This function runs a single trial of the LCA-GI (Leaky Competing Accumulator
+#' with Global Inhibition) simulation using the provided item formulas and trial
+#' settings. It's a wrapper around the core C++ function for LCA-GI.
+#' @param trial_setting A list of named values representing the trial settings
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_items The number of items to simulate
+#' @param max_reached The threshold for evidence accumulation
+#' @param max_t The maximum time to simulate
+#' @param dt The step size for each increment
+#' @param noise_factory A function that takes trial_setting and returns a noise
+#' function with signature function(n, dt)
+#' @param trajectories Whether to return full output including trajectories.
+#' @return A list containing the simulation results
+#' @note After evaluation, parameters A, V, ndt, beta, and k are expected
+#' to be numeric vectors of length n_items. And they are matched by position.
+#' So, the first element of A, V, ndt, beta, and k corresponds to the first
+#' item, and so on.
+#' @keywords internal
+run_trial_lca_gi <- function(
+    trial_setting,
+    item_formulas,
+    n_items,
+    max_reached,
+    max_t,
+    dt,
+    noise_factory,
+    trajectories = FALSE) {
+  # prepare
+  item_params <- evaluate_with_dt(
+    item_formulas,
+    data = trial_setting,
+    n = n_items
+  )
+  noise_fun <- noise_factory(trial_setting)
+
+  sim_result <- accumulate_evidence_lca_gi(
+    item_params$A,
+    item_params$V,
+    item_params$ndt,
+    item_params$beta,
+    item_params$k,
+    max_t,
+    dt,
+    max_reached,
+    noise_fun
+  )
+
+  if (trajectories) {
+    sim_result$.item_params <- item_params
+  }
+
+  sim_result
+}
+
+
 #' Run a given condition with multiple trials
 #'
 #' This function runs multiple trials for a given condition using the specified
@@ -226,7 +283,7 @@ run_trial_ddm_2b <- function(
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt)
-#' @param model The model to use ("ddm" or "ddm-2b")
+#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi")
 #' @param trajectories Whether to return full output including trajectories.
 #' @return A list containing the simulation results and condition parameters
 #' @keywords internal
@@ -244,8 +301,8 @@ run_condition <- function(
     model,
     trajectories = FALSE) {
   # validate model parameter
-  if (!model %in% c("ddm", "ddm-2b")) {
-    stop("model must be either 'ddm' or 'ddm-2b'")
+  if (!model %in% c("ddm", "ddm-2b", "lca-gi")) {
+    stop("model must be either 'ddm', 'ddm-2b', or 'lca-gi'")
   }
 
   # prepare
@@ -286,6 +343,16 @@ run_condition <- function(
           noise_mechanism = noise_mechanism,
           noise_factory = noise_factory,
           trajectories = trajectories
+        ),
+        "lca-gi" = run_trial_lca_gi(
+          trial_setting = trial_setting,
+          item_formulas = item_formulas,
+          n_items = n_items,
+          max_reached = max_reached,
+          max_t = max_t,
+          dt = dt,
+          noise_factory = noise_factory,
+          trajectories = trajectories
         )
       )
     }
@@ -320,7 +387,7 @@ run_condition <- function(
 #' @param noise_mechanism The noise mechanism to use ("add" or "mult")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm" or "ddm-2b", default: "ddm")
+#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi", default: "ddm")
 #' @param trajectories Whether to return full output including trajectories
 #' (default: FALSE)
 #' @return A list containing the simulation results for all conditions
@@ -421,7 +488,7 @@ run_simulation_serial <- function(
 #'  "add")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm" or "ddm-2b", default: "ddm")
+#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi", default: "ddm")
 #' @param trajectories Whether to return full output including trajectories i.e.
 #' the full parameter evaluated at each trial. (default: FALSE)
 #' @param parallel Whether to run in parallel (default: FALSE)
@@ -512,7 +579,7 @@ run_simulation <- function(
 #'  "add")
 #' @param noise_factory A function that takes condition_setting and returns a
 #' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm" or "ddm-2b")
+#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi")
 #' @param trajectories Whether to return full output including trajectories
 #' (default: FALSE)
 #' @param chunk_size The size of chunks to split conditions into for parallel
@@ -642,8 +709,9 @@ run_simulation_parallel <- function(
   # export necessary objects to cluster
   parallel::clusterExport(cl, c(
     # functions
-    "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "evaluate_with_dt",
-    "resolve_symbol", "accumulate_evidence_ddm", "accumulate_evidence_ddm_2b",
+    "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "run_trial_lca_gi",
+    "evaluate_with_dt", "resolve_symbol", "accumulate_evidence_ddm",
+    "accumulate_evidence_ddm_2b", "accumulate_evidence_lca_gi",
     # env
     "between_trial_formulas", "item_formulas", "n_trial_per_condition",
     "n_items", "max_reached", "max_t", "dt", "noise_mechanism",
