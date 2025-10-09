@@ -367,6 +367,80 @@ run_condition <- function(
 }
 
 
+#' Run a chunk of simulation conditions and save results to disk
+#'
+#' This function processes a chunk of simulation conditions, applies the 
+#' flatten_simulation_results transformation, and saves the results to disk
+#' using Arrow's write_dataset with partitioning by chunk_idx.
+#' @param chunk_prior_params A list of chunked prior parameters
+#' @param between_trial_formulas A list of formulas defining the between-trial
+#' parameters
+#' @param item_formulas A list of formulas defining the item parameters
+#' @param n_trial_per_condition The number of trials per condition
+#' @param n_items The number of items per trial
+#' @param max_reached The threshold for evidence accumulation
+#' @param max_t The maximum time to simulate
+#' @param dt The step size for each increment
+#' @param noise_mechanism The noise mechanism to use
+#' @param noise_factory A function that takes condition_setting and returns a
+#' noise function with signature function(n, dt)
+#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi")
+#' @param trajectories Whether to return full output including trajectories
+#' @param output_dir The directory to save results to
+#' @param chunk_idx The chunk index for partitioning
+#' @return Invisible NULL (results are saved to disk)
+#' @keywords internal
+run_chunk <- function(chunk_prior_params, between_trial_formulas, item_formulas,
+                      n_trial_per_condition, n_items, max_reached, max_t, dt,
+                      noise_mechanism, noise_factory, model, trajectories,
+                      output_dir, chunk_idx) {
+  n_conditions_in_chunk <- length(chunk_prior_params[[1]])
+
+  # create condition settings list for this chunk
+  condition_params_list <- vector("list", n_conditions_in_chunk)
+  for (i in seq_len(n_conditions_in_chunk)) {
+    condition_params_list[[i]] <- lapply(chunk_prior_params, function(x) x[i])
+  }
+
+  # run each condition in this chunk
+  chunk_results <- lapply(
+    condition_params_list,
+    function(condition_setting) {
+      run_condition(
+        condition_setting = condition_setting,
+        between_trial_formulas = between_trial_formulas,
+        item_formulas = item_formulas,
+        n_trials = n_trial_per_condition,
+        n_items = n_items,
+        max_reached = max_reached,
+        max_t = max_t,
+        dt = dt,
+        noise_mechanism = noise_mechanism,
+        noise_factory = noise_factory,
+        model = model,
+        trajectories = trajectories
+      )
+    }
+  )
+
+  # Transform results to table format
+  flat_results <- flatten_simulation_results(chunk_results)
+  
+  # Add chunk_idx column for partitioning
+  flat_results$chunk_idx <- chunk_idx
+  
+  # Save to output directory with partitioning by chunk_idx
+  arrow::write_dataset(
+    flat_results,
+    path = output_dir,
+    partitioning = c("chunk_idx"),
+    format = "parquet"
+  )
+  
+  # No need to return anything for out-of-core processing
+  return(invisible(NULL))
+}
+
 #' Run a full simulation across multiple conditions (serial version)
 #'
 #' This function runs a complete simulation across multiple conditions serially,
@@ -407,7 +481,8 @@ run_simulation_serial <- function(
       function(n, dt) rep(0, n)
     },
     model,
-    trajectories = FALSE) {
+    trajectories = FALSE,
+    output_dir = NULL) {
   # validate inputs
   if (!is.list(prior_formulas)) {
     stop("prior_formulas must be a list of formulas")
@@ -435,35 +510,43 @@ run_simulation_serial <- function(
     n = n_condition
   )
 
-  # create condition settings list
-  condition_params_list <- vector("list", n_condition)
-  for (i in seq_len(n_condition)) {
-    condition_params_list[[i]] <- lapply(prior_params, function(x) x[i])
-  }
-
-  # run each condition
-  sim_results <- lapply(
-    condition_params_list,
-    function(condition_setting) {
-      run_condition(
-        condition_setting = condition_setting,
-        between_trial_formulas = between_trial_formulas,
-        item_formulas = item_formulas,
-        n_trials = n_trial_per_condition,
-        n_items = n_items,
-        max_reached = max_reached,
-        max_t = max_t,
-        dt = dt,
-        noise_mechanism = noise_mechanism,
-        noise_factory = noise_factory,
-        model = model,
-        trajectories = trajectories
-      )
-    }
+  # For serial processing, we can process everything as a single chunk
+  # or still use chunk-based approach for consistency
+  chunk_size <- n_condition  # Process all conditions in one chunk for serial
+  
+  # split prior_params into chunks (just one chunk for serial)
+  condition_indices <- seq_len(n_condition)
+  chunk_indices <- split(
+    condition_indices,
+    ceiling(condition_indices / chunk_size)
   )
 
-  # Return a list containing both results and prior parameters
-  return(sim_results)
+  # create chunked prior parameters
+  chunked_prior_params <- lapply(chunk_indices, function(indices) {
+    lapply(prior_params, function(param) param[indices])
+  })
+
+  # Process chunks serially using the standalone run_chunk function
+  for (i in seq_along(chunked_prior_params)) {
+    run_chunk(
+      chunk_prior_params = chunked_prior_params[[i]],
+      between_trial_formulas = between_trial_formulas,
+      item_formulas = item_formulas,
+      n_trial_per_condition = n_trial_per_condition,
+      n_items = n_items,
+      max_reached = max_reached,
+      max_t = max_t,
+      dt = dt,
+      noise_mechanism = noise_mechanism,
+      noise_factory = noise_factory,
+      model = model,
+      trajectories = trajectories,
+      output_dir = output_dir,
+      chunk_idx = i
+    )
+  }
+
+  # No return needed - handled by run_simulation
 }
 
 
@@ -496,7 +579,9 @@ run_simulation_serial <- function(
 #' processing (default: ceiling(n_condition / cores))
 #' @param n_cores The number of cores to use for parallel processing
 #' (default: parallel::detectCores() - 1)
-#' @return A list containing the simulation results for all conditions
+#' @param output_dir The directory to save out-of-core results (default: temporary 
+#' directory created with tempfile())
+#' @return A list containing the output directory information
 #' @export
 run_simulation <- function(
     prior_formulas,
@@ -514,11 +599,15 @@ run_simulation <- function(
     trajectories = FALSE,
     parallel = FALSE,
     chunk_size = NULL,
-    n_cores = NULL) {
+    n_cores = NULL,
+    output_dir = NULL) {
   if (is.null(noise_factory)) {
     noise_factory <- function(condition_setting) {
       function(n, dt) rep(0, n)
     }
+  }
+  if (is.null(output_dir)) {
+    output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
   }
   if (parallel) {
     run_simulation_parallel(
@@ -536,7 +625,8 @@ run_simulation <- function(
       model = model,
       trajectories = trajectories,
       chunk_size = chunk_size,
-      n_cores = n_cores
+      n_cores = n_cores,
+      output_dir = output_dir
     )
   } else {
     run_simulation_serial(
@@ -552,9 +642,16 @@ run_simulation <- function(
       noise_mechanism = noise_mechanism,
       noise_factory = noise_factory,
       model = model,
-      trajectories = trajectories
+      trajectories = trajectories,
+      output_dir = output_dir
     )
   }
+  
+  # Return placeholder list with output directory information and read function
+  return(list(
+    output_dir = output_dir,
+    result = arrow::open_dataset(output_dir)
+  ))
 }
 
 
@@ -604,7 +701,8 @@ run_simulation_parallel <- function(
     trajectories = FALSE,
     chunk_size = NULL,
     n_cores = NULL,
-    parallel_rand_seed = NULL) {
+    parallel_rand_seed = NULL,
+    output_dir) {
   # validate inputs
   if (!is.list(prior_formulas)) {
     stop("prior_formulas must be a list of formulas")
@@ -663,47 +761,18 @@ run_simulation_parallel <- function(
     ceiling(condition_indices / chunk_size)
   )
 
-  # create chunked prior parameters
-  chunked_prior_params <- lapply(chunk_indices, function(indices) {
-    lapply(prior_params, function(param) param[indices])
+  # create chunked prior parameters with chunk indices
+  chunked_data <- lapply(seq_along(chunk_indices), function(i) {
+    indices <- chunk_indices[[i]]
+    chunk_params <- lapply(prior_params, function(param) param[indices])
+    list(
+      chunk_idx = i,
+      chunk_prior_params = chunk_params
+    )
   })
 
-  # function to process a single chunk
-  process_chunk <- function(chunk_prior_params) {
-    n_conditions_in_chunk <- length(chunk_prior_params[[1]])
-
-    # create condition settings list for this chunk
-    condition_params_list <- vector("list", n_conditions_in_chunk)
-    for (i in seq_len(n_conditions_in_chunk)) {
-      condition_params_list[[i]] <- lapply(chunk_prior_params, function(x) x[i])
-    }
-
-    # run each condition in this chunk
-    chunk_results <- lapply(
-      condition_params_list,
-      function(condition_setting) {
-        run_condition(
-          condition_setting = condition_setting,
-          between_trial_formulas = between_trial_formulas,
-          item_formulas = item_formulas,
-          n_trials = n_trial_per_condition,
-          n_items = n_items,
-          max_reached = max_reached,
-          max_t = max_t,
-          dt = dt,
-          noise_mechanism = noise_mechanism,
-          noise_factory = noise_factory,
-          model = model,
-          trajectories = trajectories
-        )
-      }
-    )
-
-    return(chunk_results)
-  }
-
   # setup parallel cluster
-  cl <- parallel::makeCluster(min(n_cores, length(chunked_prior_params)))
+  cl <- parallel::makeCluster(min(n_cores, length(chunked_data)))
   on.exit(parallel::stopCluster(cl))
 
   # export necessary objects to cluster
@@ -712,10 +781,11 @@ run_simulation_parallel <- function(
     "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "run_trial_lca_gi",
     "evaluate_with_dt", "resolve_symbol", "accumulate_evidence_ddm",
     "accumulate_evidence_ddm_2b", "accumulate_evidence_lca_gi",
+    "flatten_simulation_results", "run_chunk",
     # env
     "between_trial_formulas", "item_formulas", "n_trial_per_condition",
     "n_items", "max_reached", "max_t", "dt", "noise_mechanism",
-    "noise_factory", "model", "trajectories"
+    "noise_factory", "model", "trajectories", "output_dir"
   ),
   envir = environment()
   )
@@ -723,25 +793,55 @@ run_simulation_parallel <- function(
   # set RNG seed for parallel workers
   parallel::clusterSetRNGStream(cl, iseed = parallel_rand_seed)
 
-  # run parallel processing with progress bar
+  # run parallel processing with progress bar using the standalone run_chunk function
   if (requireNamespace("pbapply", quietly = TRUE)) {
-    parallel_results <- pbapply::pblapply(
-      chunked_prior_params,
-      process_chunk,
+    pbapply::pblapply(
+      chunked_data,
+      function(chunk_data) {
+        run_chunk(
+          chunk_prior_params = chunk_data$chunk_prior_params,
+          between_trial_formulas = between_trial_formulas,
+          item_formulas = item_formulas,
+          n_trial_per_condition = n_trial_per_condition,
+          n_items = n_items,
+          max_reached = max_reached,
+          max_t = max_t,
+          dt = dt,
+          noise_mechanism = noise_mechanism,
+          noise_factory = noise_factory,
+          model = model,
+          trajectories = trajectories,
+          output_dir = output_dir,
+          chunk_idx = chunk_data$chunk_idx
+        )
+      },
       cl = cl
     )
   } else {
     message("Install 'pbapply' package for progress bar support")
-    parallel_results <- parallel::parLapply(
+    parallel::parLapply(
       cl,
-      chunked_prior_params,
-      process_chunk
+      chunked_data,
+      function(chunk_data) {
+        run_chunk(
+          chunk_prior_params = chunk_data$chunk_prior_params,
+          between_trial_formulas = between_trial_formulas,
+          item_formulas = item_formulas,
+          n_trial_per_condition = n_trial_per_condition,
+          n_items = n_items,
+          max_reached = max_reached,
+          max_t = max_t,
+          dt = dt,
+          noise_mechanism = noise_mechanism,
+          noise_factory = noise_factory,
+          model = model,
+          trajectories = trajectories,
+          output_dir = output_dir,
+          chunk_idx = chunk_data$chunk_idx
+        )
+      }
     )
   }
 
-  # combine results from all chunks (ensure unnamed list like serial version)
-  sim_results <- unname(do.call(c, parallel_results))
-
-  # Return the combined results
-  return(sim_results)
+  # No return needed - handled by run_simulation
 }
