@@ -55,6 +55,7 @@ sim_config <- new_simulation_config(
   n_cores = NULL,  # Will use default: detectCores() - 1
   rand_seed = NULL  # Will use default random seed
 )
+print(sim_config)
 
 # Run simulation using the configuration
 sim_result <- run_simulation(config = sim_config)
@@ -62,5 +63,4 @@ sim_result <- run_simulation(config = sim_config)
 # Access results through the dataset
 print(sim_result$result)
 
-# To read all data into memory (be careful with large datasets):
-# flat_result <- dplyr::collect(sim_result$result)
+df <- as.data.frame(sim_result$result)

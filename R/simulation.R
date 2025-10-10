@@ -372,14 +372,27 @@ run_condition <- function(
 #' This function processes a chunk of simulation conditions, applies the
 #' flatten_simulation_results transformation, and saves the results to disk
 #' using Arrow's write_dataset with partitioning by chunk_idx.
-#' @param chunk_prior_params A list of chunked prior parameters
-#' @param config A multieam_simulation_config object containing all simulation parameters
+#' @param config A multieam_simulation_config object containing all simulation
+#' parameters
 #' @param output_dir The directory to save results to
-#' @param chunk_idx The chunk index for partitioning
+#' @param chunk_idx The chunk index for partitioning (1-based)
 #' @return Invisible NULL (results are saved to disk)
 #' @keywords internal
-run_chunk <- function(chunk_prior_params, config, output_dir, chunk_idx) {
-  n_conditions_in_chunk <- length(chunk_prior_params[[1]])
+run_chunk <- function(config, output_dir, chunk_idx) {
+  # Calculate which conditions this chunk should process (1-based indexing)
+  start_condition <- (chunk_idx - 1) * config$n_conditions_per_chunk + 1
+  end_condition <- min(
+    chunk_idx * config$n_conditions_per_chunk,
+    config$n_conditions
+  )
+  n_conditions_in_chunk <- end_condition - start_condition + 1
+
+  # Generate condition parameters from prior formulas for only this chunk
+  chunk_prior_params <- evaluate_with_dt(
+    formulas = config$prior_formulas,
+    data = list(),
+    n = n_conditions_in_chunk
+  )
 
   # create condition settings list for this chunk
   condition_params_list <- vector("list", n_conditions_in_chunk)
@@ -389,9 +402,13 @@ run_chunk <- function(chunk_prior_params, config, output_dir, chunk_idx) {
 
   # run each condition in this chunk
   chunk_results <- lapply(
-    condition_params_list,
-    function(condition_setting) {
-      run_condition(
+    seq_len(n_conditions_in_chunk),
+    function(i) {
+      condition_setting <- condition_params_list[[i]]
+      # Add global condition index (1-based)
+      condition_idx <- start_condition + i - 1
+
+      result <- run_condition(
         condition_setting = condition_setting,
         between_trial_formulas = config$between_trial_formulas,
         item_formulas = config$item_formulas,
@@ -405,11 +422,18 @@ run_chunk <- function(chunk_prior_params, config, output_dir, chunk_idx) {
         model = config$model,
         trajectories = FALSE
       )
+
+      # Add condition index to the result
+      result$condition_idx <- condition_idx
+      return(result)
     }
   )
 
   # Transform results to table format
   flat_results <- flatten_simulation_results(chunk_results)
+
+  # Adjust condition_idx to use global indices instead of chunk-local indices
+  flat_results$condition_idx <- flat_results$condition_idx + start_condition - 1
 
   # Add chunk_idx column for partitioning
   flat_results$chunk_idx <- chunk_idx
@@ -447,34 +471,15 @@ run_simulation_serial <- function(config, output_dir = NULL) {
     output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
   }
 
-  # generate condition parameters from prior formulas
-  prior_params <- evaluate_with_dt(
-    formulas = config$prior_formulas,
-    data = list(),
-    n = config$n_conditions
-  )
-
-  chunk_size <- config$n_conditions # Process all conditions in one chunk for serial
-
-  # split prior_params into chunks (just one chunk for serial)
-  condition_indices <- seq_len(config$n_conditions)
-  chunk_indices <- split(
-    condition_indices,
-    ceiling(condition_indices / chunk_size)
-  )
-
-  # create chunked prior parameters
-  chunked_prior_params <- lapply(chunk_indices, function(indices) {
-    lapply(prior_params, function(param) param[indices])
-  })
+  # Calculate number of chunks needed
+  n_chunks <- ceiling(config$n_conditions / config$n_conditions_per_chunk)
 
   # Process chunks serially using the standalone run_chunk function
-  for (i in seq_along(chunked_prior_params)) {
+  for (chunk_idx in seq_len(n_chunks)) {
     run_chunk(
-      chunk_prior_params = chunked_prior_params[[i]],
       config = config,
       output_dir = output_dir,
-      chunk_idx = i
+      chunk_idx = chunk_idx
     )
   }
 
@@ -488,7 +493,8 @@ run_simulation_serial <- function(config, output_dir = NULL) {
 #' each condition having multiple trials and items. It can run either serially
 #' or in parallel based on the parallel parameter in the config. It uses the
 #' hierarchical structure: prior -> condition -> trial -> item.
-#' @param config A multieam_simulation_config object containing all simulation parameters
+#' @param config A multieam_simulation_config object containing all simulation
+#' parameters
 #' @param output_dir The directory to save out-of-core results (optional,
 #' will use temp directory if not provided)
 #' @return A list containing the output directory information and dataset
@@ -511,6 +517,7 @@ run_simulation <- function(config, output_dir = NULL) {
 
   # Return placeholder list with output directory information and read function
   return(list(
+    simulation_config = config,
     output_dir = output_dir,
     result = arrow::open_dataset(output_dir)
   ))
@@ -534,28 +541,12 @@ run_simulation_parallel <- function(config, output_dir) {
     stop("config must be a multieam_simulation_config object")
   }
 
-  # generate condition parameters from prior formulas
-  prior_params <- evaluate_with_dt(
-    formulas = config$prior_formulas,
-    data = list(),
-    n = config$n_conditions
-  )
+  # Calculate number of chunks needed
+  n_chunks <- ceiling(config$n_conditions / config$n_conditions_per_chunk)
 
-  # split prior_params into chunks
-  condition_indices <- seq_len(config$n_conditions)
-  chunk_indices <- split(
-    condition_indices,
-    ceiling(condition_indices / config$n_conditions_per_chunk)
-  )
-
-  # create chunked prior parameters with chunk indices
-  chunked_data <- lapply(seq_along(chunk_indices), function(i) {
-    indices <- chunk_indices[[i]]
-    chunk_params <- lapply(prior_params, function(param) param[indices])
-    list(
-      chunk_idx = i,
-      chunk_prior_params = chunk_params
-    )
+  # Create chunk data for parallel processing
+  chunked_data <- lapply(seq_len(n_chunks), function(chunk_idx) {
+    list(chunk_idx = chunk_idx)
   })
 
   # setup parallel cluster
@@ -563,14 +554,15 @@ run_simulation_parallel <- function(config, output_dir) {
   on.exit(parallel::stopCluster(cl))
 
   # export necessary objects to cluster
-  parallel::clusterExport(cl, c(
-    # functions
-    "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "run_trial_lca_gi",
-    "evaluate_with_dt", "resolve_symbol", "accumulate_evidence_ddm",
-    "accumulate_evidence_ddm_2b", "accumulate_evidence_lca_gi",
-    "flatten_simulation_results", "run_chunk"
-  ),
-  envir = environment()
+  parallel::clusterExport(
+    cl, c(
+      # functions
+      "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "run_trial_lca_gi",
+      "evaluate_with_dt", "resolve_symbol", "accumulate_evidence_ddm",
+      "accumulate_evidence_ddm_2b", "accumulate_evidence_lca_gi",
+      "flatten_simulation_results", "run_chunk"
+    ),
+    envir = environment()
   )
 
   # set RNG seed for parallel workers
@@ -582,7 +574,6 @@ run_simulation_parallel <- function(config, output_dir) {
       chunked_data,
       function(chunk_data) {
         run_chunk(
-          chunk_prior_params = chunk_data$chunk_prior_params,
           config = config,
           output_dir = output_dir,
           chunk_idx = chunk_data$chunk_idx
@@ -597,7 +588,6 @@ run_simulation_parallel <- function(config, output_dir) {
       chunked_data,
       function(chunk_data) {
         run_chunk(
-          chunk_prior_params = chunk_data$chunk_prior_params,
           config = config,
           output_dir = output_dir,
           chunk_idx = chunk_data$chunk_idx
