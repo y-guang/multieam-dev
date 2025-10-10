@@ -369,31 +369,16 @@ run_condition <- function(
 
 #' Run a chunk of simulation conditions and save results to disk
 #'
-#' This function processes a chunk of simulation conditions, applies the 
+#' This function processes a chunk of simulation conditions, applies the
 #' flatten_simulation_results transformation, and saves the results to disk
 #' using Arrow's write_dataset with partitioning by chunk_idx.
 #' @param chunk_prior_params A list of chunked prior parameters
-#' @param between_trial_formulas A list of formulas defining the between-trial
-#' parameters
-#' @param item_formulas A list of formulas defining the item parameters
-#' @param n_trial_per_condition The number of trials per condition
-#' @param n_items The number of items per trial
-#' @param max_reached The threshold for evidence accumulation
-#' @param max_t The maximum time to simulate
-#' @param dt The step size for each increment
-#' @param noise_mechanism The noise mechanism to use
-#' @param noise_factory A function that takes condition_setting and returns a
-#' noise function with signature function(n, dt)
-#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi")
-#' @param trajectories Whether to return full output including trajectories
+#' @param config A multieam_simulation_config object containing all simulation parameters
 #' @param output_dir The directory to save results to
 #' @param chunk_idx The chunk index for partitioning
 #' @return Invisible NULL (results are saved to disk)
 #' @keywords internal
-run_chunk <- function(chunk_prior_params, between_trial_formulas, item_formulas,
-                      n_trial_per_condition, n_items, max_reached, max_t, dt,
-                      noise_mechanism, noise_factory, model, trajectories,
-                      output_dir, chunk_idx) {
+run_chunk <- function(chunk_prior_params, config, output_dir, chunk_idx) {
   n_conditions_in_chunk <- length(chunk_prior_params[[1]])
 
   # create condition settings list for this chunk
@@ -408,27 +393,27 @@ run_chunk <- function(chunk_prior_params, between_trial_formulas, item_formulas,
     function(condition_setting) {
       run_condition(
         condition_setting = condition_setting,
-        between_trial_formulas = between_trial_formulas,
-        item_formulas = item_formulas,
-        n_trials = n_trial_per_condition,
-        n_items = n_items,
-        max_reached = max_reached,
-        max_t = max_t,
-        dt = dt,
-        noise_mechanism = noise_mechanism,
-        noise_factory = noise_factory,
-        model = model,
-        trajectories = trajectories
+        between_trial_formulas = config$between_trial_formulas,
+        item_formulas = config$item_formulas,
+        n_trials = config$n_trials_per_condition,
+        n_items = config$n_items,
+        max_reached = config$max_reached,
+        max_t = config$max_t,
+        dt = config$dt,
+        noise_mechanism = config$noise_mechanism,
+        noise_factory = config$noise_factory,
+        model = config$model,
+        trajectories = FALSE
       )
     }
   )
 
   # Transform results to table format
   flat_results <- flatten_simulation_results(chunk_results)
-  
+
   # Add chunk_idx column for partitioning
   flat_results$chunk_idx <- chunk_idx
-  
+
   # Save to output directory with partitioning by chunk_idx
   arrow::write_dataset(
     flat_results,
@@ -436,7 +421,7 @@ run_chunk <- function(chunk_prior_params, between_trial_formulas, item_formulas,
     partitioning = c("chunk_idx"),
     format = "parquet"
   )
-  
+
   # No need to return anything for out-of-core processing
   return(invisible(NULL))
 }
@@ -446,76 +431,33 @@ run_chunk <- function(chunk_prior_params, between_trial_formulas, item_formulas,
 #' This function runs a complete simulation across multiple conditions serially,
 #' with each condition having multiple trials and items. It uses the
 #' hierarchical structure: prior -> condition -> trial -> item. All parameters
-#' must be explicitly specified.
-#' @param prior_formulas A list of formulas defining the prior parameters
-#' for conditions
-#' @param between_trial_formulas A list of formulas defining the between-trial
-#' parameters
-#' @param item_formulas A list of formulas defining the item parameters
-#' @param n_condition The number of conditions to simulate
-#' @param n_trial_per_condition The number of trials per condition
-#' @param n_items The number of items per trial
-#' @param max_reached The threshold for evidence accumulation
-#' @param max_t The maximum time to simulate
-#' @param dt The step size for each increment
-#' @param noise_mechanism The noise mechanism to use ("add" or "mult")
-#' @param noise_factory A function that takes condition_setting and returns a
-#' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi", default: "ddm")
-#' @param trajectories Whether to return full output including trajectories
-#' (default: FALSE)
-#' @return A list containing the simulation results for all conditions
+#' are taken from the configuration object.
+#' @param config simulation config object
+#' @param output_dir The directory to save out-of-core results (optional,
+#' will use temp directory if not provided)
+#' @return No return value (results saved to disk)
 #' @export
-run_simulation_serial <- function(
-    prior_formulas,
-    between_trial_formulas = list(),
-    item_formulas = list(),
-    n_condition,
-    n_trial_per_condition,
-    n_items,
-    max_reached,
-    max_t,
-    dt,
-    noise_mechanism,
-    noise_factory = function(condition_setting) {
-      function(n, dt) rep(0, n)
-    },
-    model,
-    trajectories = FALSE,
-    output_dir = NULL) {
-  # validate inputs
-  if (!is.list(prior_formulas)) {
-    stop("prior_formulas must be a list of formulas")
+run_simulation_serial <- function(config, output_dir = NULL) {
+  # Validate config
+  if (!inherits(config, "multieam_simulation_config")) {
+    stop("config must be a multieam_simulation_config object")
   }
-  if (!is.list(between_trial_formulas)) {
-    stop("between_trial_formulas must be a list of formulas")
-  }
-  if (!is.list(item_formulas)) {
-    stop("item_formulas must be a list of formulas")
-  }
-  if (n_condition < 1) {
-    stop("n_condition must be at least 1")
-  }
-  if (n_trial_per_condition < 1) {
-    stop("n_trial_per_condition must be at least 1")
-  }
-  if (n_items < 1) {
-    stop("n_items must be at least 1")
+
+  if (is.null(output_dir)) {
+    output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
   }
 
   # generate condition parameters from prior formulas
   prior_params <- evaluate_with_dt(
-    formulas = prior_formulas,
+    formulas = config$prior_formulas,
     data = list(),
-    n = n_condition
+    n = config$n_conditions
   )
 
-  # For serial processing, we can process everything as a single chunk
-  # or still use chunk-based approach for consistency
-  chunk_size <- n_condition  # Process all conditions in one chunk for serial
-  
+  chunk_size <- config$n_conditions # Process all conditions in one chunk for serial
+
   # split prior_params into chunks (just one chunk for serial)
-  condition_indices <- seq_len(n_condition)
+  condition_indices <- seq_len(config$n_conditions)
   chunk_indices <- split(
     condition_indices,
     ceiling(condition_indices / chunk_size)
@@ -530,23 +472,13 @@ run_simulation_serial <- function(
   for (i in seq_along(chunked_prior_params)) {
     run_chunk(
       chunk_prior_params = chunked_prior_params[[i]],
-      between_trial_formulas = between_trial_formulas,
-      item_formulas = item_formulas,
-      n_trial_per_condition = n_trial_per_condition,
-      n_items = n_items,
-      max_reached = max_reached,
-      max_t = max_t,
-      dt = dt,
-      noise_mechanism = noise_mechanism,
-      noise_factory = noise_factory,
-      model = model,
-      trajectories = trajectories,
+      config = config,
       output_dir = output_dir,
       chunk_idx = i
     )
   }
 
-  # No return needed - handled by run_simulation
+  invisible(NULL)
 }
 
 
@@ -554,99 +486,29 @@ run_simulation_serial <- function(
 #'
 #' This function runs a complete simulation across multiple conditions, with
 #' each condition having multiple trials and items. It can run either serially
-#' or in parallel based on the parallel parameter. It uses the hierarchical
-#' structure: prior -> condition -> trial -> item.
-#' @param prior_formulas A list of formulas defining the prior parameters
-#' for conditions
-#' @param between_trial_formulas A list of formulas defining the between-trial
-#' parameters
-#' @param item_formulas A list of formulas defining the item parameters
-#' @param n_condition The number of conditions to simulate
-#' @param n_trial_per_condition The number of trials per condition
-#' @param n_items The number of items per trial
-#' @param max_reached The threshold for evidence accumulation (default: n_items)
-#' @param max_t The maximum time to simulate (default: 100)
-#' @param dt The step size for each increment (default: 0.01)
-#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
-#'  "add")
-#' @param noise_factory A function that takes condition_setting and returns a
-#' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi", default: "ddm")
-#' @param trajectories Whether to return full output including trajectories i.e.
-#' the full parameter evaluated at each trial. (default: FALSE)
-#' @param parallel Whether to run in parallel (default: FALSE)
-#' @param chunk_size The size of chunks to split conditions into for parallel
-#' processing (default: ceiling(n_condition / cores))
-#' @param n_cores The number of cores to use for parallel processing
-#' (default: parallel::detectCores() - 1)
-#' @param output_dir The directory to save out-of-core results (default: temporary 
-#' directory created with tempfile())
-#' @return A list containing the output directory information
+#' or in parallel based on the parallel parameter in the config. It uses the
+#' hierarchical structure: prior -> condition -> trial -> item.
+#' @param config A multieam_simulation_config object containing all simulation parameters
+#' @param output_dir The directory to save out-of-core results (optional,
+#' will use temp directory if not provided)
+#' @return A list containing the output directory information and dataset
 #' @export
-run_simulation <- function(
-    prior_formulas,
-    between_trial_formulas = list(),
-    item_formulas = list(),
-    n_condition,
-    n_trial_per_condition,
-    n_items,
-    max_reached = n_items,
-    max_t = 100,
-    dt = 0.01,
-    noise_mechanism = "add",
-    noise_factory = NULL,
-    model = "ddm",
-    trajectories = FALSE,
-    parallel = FALSE,
-    chunk_size = NULL,
-    n_cores = NULL,
-    output_dir = NULL) {
-  if (is.null(noise_factory)) {
-    noise_factory <- function(condition_setting) {
-      function(n, dt) rep(0, n)
-    }
+run_simulation <- function(config, output_dir = NULL) {
+  # Validate config
+  if (!inherits(config, "multieam_simulation_config")) {
+    stop("config must be a multieam_simulation_config object")
   }
+
   if (is.null(output_dir)) {
     output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
   }
-  if (parallel) {
-    run_simulation_parallel(
-      prior_formulas = prior_formulas,
-      between_trial_formulas = between_trial_formulas,
-      item_formulas = item_formulas,
-      n_condition = n_condition,
-      n_trial_per_condition = n_trial_per_condition,
-      n_items = n_items,
-      max_reached = max_reached,
-      max_t = max_t,
-      dt = dt,
-      noise_mechanism = noise_mechanism,
-      noise_factory = noise_factory,
-      model = model,
-      trajectories = trajectories,
-      chunk_size = chunk_size,
-      n_cores = n_cores,
-      output_dir = output_dir
-    )
+
+  if (config$parallel) {
+    run_simulation_parallel(config = config, output_dir = output_dir)
   } else {
-    run_simulation_serial(
-      prior_formulas = prior_formulas,
-      between_trial_formulas = between_trial_formulas,
-      item_formulas = item_formulas,
-      n_condition = n_condition,
-      n_trial_per_condition = n_trial_per_condition,
-      n_items = n_items,
-      max_reached = max_reached,
-      max_t = max_t,
-      dt = dt,
-      noise_mechanism = noise_mechanism,
-      noise_factory = noise_factory,
-      model = model,
-      trajectories = trajectories,
-      output_dir = output_dir
-    )
+    run_simulation_serial(config = config, output_dir = output_dir)
   }
-  
+
   # Return placeholder list with output directory information and read function
   return(list(
     output_dir = output_dir,
@@ -661,104 +523,29 @@ run_simulation <- function(
 #' parallel processing. It splits the conditions into chunks and processes
 #' each chunk on separate cores. Each condition has multiple trials and items.
 #' It uses the hierarchical structure: prior -> condition -> trial -> item.
-#' @param prior_formulas A list of formulas defining the prior parameters
-#' for conditions
-#' @param between_trial_formulas A list of formulas defining the between-trial
-#' parameters
-#' @param item_formulas A list of formulas defining the item parameters
-#' @param n_condition The number of conditions to simulate
-#' @param n_trial_per_condition The number of trials per condition
-#' @param n_items The number of items per trial
-#' @param max_reached The threshold for evidence accumulation (default: n_items)
-#' @param max_t The maximum time to simulate (default: 100)
-#' @param dt The step size for each increment (default: 0.01)
-#' @param noise_mechanism The noise mechanism to use ("add" or "mult", default:
-#'  "add")
-#' @param noise_factory A function that takes condition_setting and returns a
-#' noise function with signature function(n, dt). Default returns zero noise.
-#' @param model The model to use ("ddm", "ddm-2b", or "lca-gi")
-#' @param trajectories Whether to return full output including trajectories
-#' (default: FALSE)
-#' @param chunk_size The size of chunks to split conditions into for parallel
-#' processing (default: ceiling(n_condition / cores))
-#' @param n_cores The number of cores to use for parallel processing
-#' (default: parallel::detectCores() - 1)
-#' @return A list containing the simulation results for all conditions
+#' All parameters are taken from the configuration object.
+#' @param config A multieam_simulation_config object containing all simulation parameters
+#' @param output_dir The directory to save out-of-core results
+#' @return No return value (results saved to disk)
 #' @export
-run_simulation_parallel <- function(
-    prior_formulas,
-    between_trial_formulas = list(),
-    item_formulas = list(),
-    n_condition,
-    n_trial_per_condition,
-    n_items,
-    max_reached,
-    max_t,
-    dt,
-    noise_mechanism,
-    noise_factory,
-    model,
-    trajectories = FALSE,
-    chunk_size = NULL,
-    n_cores = NULL,
-    parallel_rand_seed = NULL,
-    output_dir) {
-  # validate inputs
-  if (!is.list(prior_formulas)) {
-    stop("prior_formulas must be a list of formulas")
-  }
-  if (!is.list(between_trial_formulas)) {
-    stop("between_trial_formulas must be a list of formulas")
-  }
-  if (!is.list(item_formulas)) {
-    stop("item_formulas must be a list of formulas")
-  }
-  if (n_condition < 1) {
-    stop("n_condition must be at least 1")
-  }
-  if (n_trial_per_condition < 1) {
-    stop("n_trial_per_condition must be at least 1")
-  }
-  if (n_items < 1) {
-    stop("n_items must be at least 1")
-  }
-
-  # set default values
-  if (is.null(n_cores)) {
-    n_cores <- parallel::detectCores() - 1
-  }
-
-  # Heuristic for chunk size
-  if (is.null(chunk_size)) {
-    n_partitions <- ceiling(sqrt(n_condition))
-    n_partitions <- max(n_cores, min(n_partitions, n_cores * 10))
-    chunk_size <- ceiling(n_condition / n_partitions)
-  }
-
-  if (is.null(parallel_rand_seed)) {
-    parallel_rand_seed <- sample.int(.Machine$integer.max, 1)
-  }
-
-  # validate the nullable parameters
-  if (n_cores < 1) {
-    stop("n_cores must be at least 1")
-  }
-  if (chunk_size < 1) {
-    stop("chunk size must be at least 1")
+run_simulation_parallel <- function(config, output_dir) {
+  # Validate config
+  if (!inherits(config, "multieam_simulation_config")) {
+    stop("config must be a multieam_simulation_config object")
   }
 
   # generate condition parameters from prior formulas
   prior_params <- evaluate_with_dt(
-    formulas = prior_formulas,
+    formulas = config$prior_formulas,
     data = list(),
-    n = n_condition
+    n = config$n_conditions
   )
 
   # split prior_params into chunks
-  condition_indices <- seq_len(n_condition)
+  condition_indices <- seq_len(config$n_conditions)
   chunk_indices <- split(
     condition_indices,
-    ceiling(condition_indices / chunk_size)
+    ceiling(condition_indices / config$n_conditions_per_chunk)
   )
 
   # create chunked prior parameters with chunk indices
@@ -772,7 +559,7 @@ run_simulation_parallel <- function(
   })
 
   # setup parallel cluster
-  cl <- parallel::makeCluster(min(n_cores, length(chunked_data)))
+  cl <- parallel::makeCluster(min(config$n_cores, length(chunked_data)))
   on.exit(parallel::stopCluster(cl))
 
   # export necessary objects to cluster
@@ -781,17 +568,13 @@ run_simulation_parallel <- function(
     "run_condition", "run_trial_ddm", "run_trial_ddm_2b", "run_trial_lca_gi",
     "evaluate_with_dt", "resolve_symbol", "accumulate_evidence_ddm",
     "accumulate_evidence_ddm_2b", "accumulate_evidence_lca_gi",
-    "flatten_simulation_results", "run_chunk",
-    # env
-    "between_trial_formulas", "item_formulas", "n_trial_per_condition",
-    "n_items", "max_reached", "max_t", "dt", "noise_mechanism",
-    "noise_factory", "model", "trajectories", "output_dir"
+    "flatten_simulation_results", "run_chunk"
   ),
   envir = environment()
   )
 
   # set RNG seed for parallel workers
-  parallel::clusterSetRNGStream(cl, iseed = parallel_rand_seed)
+  parallel::clusterSetRNGStream(cl, iseed = config$rand_seed)
 
   # run parallel processing with progress bar using the standalone run_chunk function
   if (requireNamespace("pbapply", quietly = TRUE)) {
@@ -800,17 +583,7 @@ run_simulation_parallel <- function(
       function(chunk_data) {
         run_chunk(
           chunk_prior_params = chunk_data$chunk_prior_params,
-          between_trial_formulas = between_trial_formulas,
-          item_formulas = item_formulas,
-          n_trial_per_condition = n_trial_per_condition,
-          n_items = n_items,
-          max_reached = max_reached,
-          max_t = max_t,
-          dt = dt,
-          noise_mechanism = noise_mechanism,
-          noise_factory = noise_factory,
-          model = model,
-          trajectories = trajectories,
+          config = config,
           output_dir = output_dir,
           chunk_idx = chunk_data$chunk_idx
         )
@@ -825,17 +598,7 @@ run_simulation_parallel <- function(
       function(chunk_data) {
         run_chunk(
           chunk_prior_params = chunk_data$chunk_prior_params,
-          between_trial_formulas = between_trial_formulas,
-          item_formulas = item_formulas,
-          n_trial_per_condition = n_trial_per_condition,
-          n_items = n_items,
-          max_reached = max_reached,
-          max_t = max_t,
-          dt = dt,
-          noise_mechanism = noise_mechanism,
-          noise_factory = noise_factory,
-          model = model,
-          trajectories = trajectories,
+          config = config,
           output_dir = output_dir,
           chunk_idx = chunk_data$chunk_idx
         )
@@ -843,5 +606,5 @@ run_simulation_parallel <- function(
     )
   }
 
-  # No return needed - handled by run_simulation
+  invisible(NULL)
 }

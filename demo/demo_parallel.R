@@ -1,3 +1,5 @@
+# Demo: Parallel simulation using the new configuration interface
+
 # placeholder
 n_items <- 10
 
@@ -34,21 +36,31 @@ noise_factory <- function(context) {
   }
 }
 
-sim_result <- run_simulation(
+# Create simulation configuration
+sim_config <- new_simulation_config(
   prior_formulas = prior_formulas,
   between_trial_formulas = between_trial_formulas,
   item_formulas = item_formulas,
-  n_condition = 1000,
-  n_trial_per_condition = 100,
+  n_conditions_per_chunk = 100,
+  n_conditions = 1000,
+  n_trials_per_condition = 100,
   n_items = n_items,
   max_reached = n_items,
   max_t = 100,
   dt = 0.01,
   noise_mechanism = "add",
   noise_factory = noise_factory,
-  trajectories = FALSE,
+  model = "ddm",
   parallel = TRUE,
-  chunk_size = 100
+  n_cores = NULL,  # Will use default: detectCores() - 1
+  rand_seed = NULL  # Will use default random seed
 )
 
-flat_result <- flatten_simulation_results(sim_result)
+# Run simulation using the configuration
+sim_result <- run_simulation(config = sim_config)
+
+# Access results through the dataset
+print(sim_result$result)
+
+# To read all data into memory (be careful with large datasets):
+# flat_result <- dplyr::collect(sim_result$result)
