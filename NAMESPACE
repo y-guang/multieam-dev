@@ -1,3 +1,4 @@
 exportPattern("^[[:alpha:]]+")
+S3method(print, multieam_simulation_config)
 useDynLib(multieam)
 importFrom(Rcpp, sourceCpp)

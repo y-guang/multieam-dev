@@ -1,3 +1,28 @@
+#' Create a new simulation configuration
+#'
+#' This function creates a new multieam simulation configuration object that
+#' contains all parameters needed to run a simulation.
+#'
+#' @param prior_formulas A list of formulas defining prior distributions for
+#'   condition-level parameters
+#' @param between_trial_formulas A list of formulas defining between-trial
+#'   parameters
+#' @param item_formulas A list of formulas defining item-level parameters
+#' @param n_conditions_per_chunk Number of conditions to process per chunk
+#' @param n_conditions Total number of conditions to simulate
+#' @param n_trials_per_condition Number of trials per condition
+#' @param n_items Number of items per trial
+#' @param max_reached Maximum number of items that can be recalled (default: n_items)
+#' @param max_t Maximum simulation time
+#' @param dt Time step size (default: 0.001)
+#' @param noise_mechanism Noise mechanism ("add", "mult", "mult_evidence", or "mult_t")
+#' @param noise_factory Function that creates noise functions
+#' @param model Model type ("ddm", "ddm-2b", or "lca-gi")
+#' @param parallel Whether to run in parallel (default: FALSE)
+#' @param n_cores Number of cores for parallel processing (default: NULL)
+#' @param rand_seed Random seed for parallel processing (default: NULL)
+#' @return A multieam_simulation_config object
+#' @export
 new_simulation_config <- function(
     prior_formulas = list(),
     between_trial_formulas = list(),
@@ -225,7 +250,12 @@ validate_simulation_config <- function(config) {
   invisible(config)
 }
 
-# Print method for better display
+#' Print method for multieam simulation configuration
+#'
+#' @param x A multieam_simulation_config object
+#' @param ... Additional arguments (ignored)
+#' @return Invisibly returns the input object
+#' @export
 print.multieam_simulation_config <- function(x, ...) {
   cat("Multieam Simulation Configuration\n")
   cat("=================================\n")
