@@ -58,9 +58,13 @@ sim_config <- new_simulation_config(
 print(sim_config)
 
 # Run simulation using the configuration
-sim_result <- run_simulation(config = sim_config)
+sim_result <- run_simulation(
+  config = sim_config,
+  output_dir = NULL # No output directory, results kept in temp file
+)
 
 # Access results through the dataset
 print(sim_result$result)
 
+# load data into memory
 df <- as.data.frame(sim_result$result)
