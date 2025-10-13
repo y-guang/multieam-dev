@@ -539,9 +539,10 @@ run_simulation <- function(config, output_dir = NULL) {
   ret <- list(
     simulation_config = config,
     output_dir = output_dir,
-    dataset = arrow::open_dataset(simulation_dataset_dir),
-    class = "multieam_simulation_output"
+    dataset = arrow::open_dataset(simulation_dataset_dir)
   )
+  # Create S3 object
+  ret <- structure(ret, class = "multieam_simulation_output")
 
   # persist the config
   saveRDS(config, file = file.path(output_dir, "simulation_config.rds"))
@@ -671,9 +672,10 @@ load_simulation_output <- function(output_dir) {
   ret <- list(
     simulation_config = config,
     output_dir = output_dir,
-    dataset = arrow::open_dataset(simulation_dataset_dir),
-    class = "multieam_simulation_output"
+    dataset = arrow::open_dataset(simulation_dataset_dir)
   )
+  # Create S3 object
+  ret <- structure(ret, class = "multieam_simulation_output")
 
   return(ret)
 }
