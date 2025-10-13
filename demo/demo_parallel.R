@@ -81,3 +81,13 @@ df <- as.data.frame(sim_output$dataset)
 # re-load a dataset from the output path
 sim_output_reloaded <- load_simulation_output(temp_output_path)
 
+condition_summary <- map_by_condition(
+  sim_output,
+  function(df) {
+    df |> dplyr::summarise(
+      rt_mean = mean(rt),
+      rt_sd = sd(rt)
+      )
+    },
+  .progress = TRUE # turn on progress bar
+)
