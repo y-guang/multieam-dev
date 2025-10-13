@@ -506,21 +506,47 @@ run_simulation <- function(config, output_dir = NULL) {
   }
 
   if (is.null(output_dir)) {
-    output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
+    rand_hex <- paste0(
+      sample(c(0:9, letters[1:6]), 8, replace = TRUE),
+      collapse = ""
+    )
+    output_dir <- tempfile(
+      pattern = paste0("multieam_simulation_output_", rand_hex)
+    )
   }
+
+  # check empty output directory
+  if (dir.exists(output_dir) &&
+    length(list.files(output_dir, all.files = FALSE, no.. = TRUE)) > 0
+  ) {
+    stop("Output directory must be empty: ", output_dir)
+  }
+
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
 
   if (config$parallel) {
-    run_simulation_parallel(config = config, output_dir = output_dir)
+    run_simulation_parallel(
+      config = config,
+      output_dir = simulation_dataset_dir
+    )
   } else {
-    run_simulation_serial(config = config, output_dir = output_dir)
+    run_simulation_serial(
+      config = config,
+      output_dir = simulation_dataset_dir
+    )
   }
 
-  # Return placeholder list with output directory information and read function
-  return(list(
+  ret <- list(
     simulation_config = config,
     output_dir = output_dir,
-    result = arrow::open_dataset(output_dir)
-  ))
+    dataset = arrow::open_dataset(simulation_dataset_dir),
+    class = "multieam_simulation_output"
+  )
+
+  # persist the config
+  saveRDS(config, file = file.path(output_dir, "simulation_config.rds"))
+
+  ret
 }
 
 
@@ -597,4 +623,57 @@ run_simulation_parallel <- function(config, output_dir) {
   }
 
   invisible(NULL)
+}
+
+
+#' Rebuild multieam_simulation_output from an existing output directory
+#'
+#' This function reconstructs a multieam_simulation_output object from a
+#' previously saved simulation output directory. It reads the saved
+#' configuration
+#' and opens the Arrow dataset.
+#' @param output_dir The directory containing the simulation results and config
+#' @return A multieam_simulation_output object
+#' @export
+load_simulation_output <- function(output_dir) {
+  # Validate that output_dir exists
+  if (!dir.exists(output_dir)) {
+    stop("Output directory does not exist: ", output_dir)
+  }
+
+  # Check for config file
+  config_path <- file.path(output_dir, "simulation_config.rds")
+  if (!file.exists(config_path)) {
+    stop(
+      "Simulation config not found in output directory: ", config_path,
+      "\nTypically, this simulation did not complete successfully."
+    )
+  }
+
+  # Check for simulation dataset directory
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  if (!dir.exists(simulation_dataset_dir)) {
+    stop(
+      "Simulation dataset directory not found: ", simulation_dataset_dir,
+      "\nThat means, this simulation output directory is incomplete."
+    )
+  }
+
+  # Load the config
+  config <- readRDS(config_path)
+
+  # Validate config
+  if (!inherits(config, "multieam_simulation_config")) {
+    stop("Invalid simulation config found in: ", config_path)
+  }
+
+  # Rebuild the output object
+  ret <- list(
+    simulation_config = config,
+    output_dir = output_dir,
+    dataset = arrow::open_dataset(simulation_dataset_dir),
+    class = "multieam_simulation_output"
+  )
+
+  return(ret)
 }

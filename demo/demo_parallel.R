@@ -57,14 +57,27 @@ sim_config <- new_simulation_config(
 )
 print(sim_config)
 
+# create temporary output path
+temp_output_path = tempfile("multieam_demo_output")
+# remove if exists
+if (dir.exists(temp_output_path)) {
+  unlink(temp_output_path, recursive = TRUE)
+}
+cat("Temporary output path:\n")
+cat(temp_output_path, "\n")
+
 # Run simulation using the configuration
-sim_result <- run_simulation(
+sim_output <- run_simulation(
   config = sim_config,
-  output_dir = NULL # No output directory, results kept in temp file
+  output_dir = temp_output_path # No output directory, results kept in temp file
 )
 
 # Access results through the dataset
-print(sim_result$result)
+print(sim_output$simulation_config)
 
 # load data into memory
-df <- as.data.frame(sim_result$result)
+df <- as.data.frame(sim_output$dataset)
+
+# re-load a dataset from the output path
+sim_output_reloaded <- load_simulation_output(temp_output_path)
+
