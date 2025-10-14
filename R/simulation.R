@@ -555,7 +555,7 @@ run_simulation <- function(config, output_dir = NULL) {
 #' each chunk on separate cores. Each condition has multiple trials and items.
 #' It uses the hierarchical structure: prior -> condition -> trial -> item.
 #' All parameters are taken from the configuration object.
-#' @param config A multieam_simulation_config object containing all simulation parameters
+#' @param config A multieam_simulation_config object
 #' @param output_dir The directory to save out-of-core results
 #' @return No return value (results saved to disk)
 #' @export
@@ -592,7 +592,7 @@ run_simulation_parallel <- function(config, output_dir) {
   # set RNG seed for parallel workers
   parallel::clusterSetRNGStream(cl, iseed = config$rand_seed)
 
-  # run parallel processing with progress bar using the standalone run_chunk function
+  # run parallel processing with progress bar
   if (requireNamespace("pbapply", quietly = TRUE)) {
     pbapply::pblapply(
       chunked_data,
