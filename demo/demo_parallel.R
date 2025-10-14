@@ -85,6 +85,7 @@ condition_summary <- map_by_condition(
   sim_output,
   function(df) {
     df |> dplyr::summarise(
+      condition_idx = dplyr::first(condition_idx),
       rt_mean = mean(rt),
       rt_sd = sd(rt)
       )

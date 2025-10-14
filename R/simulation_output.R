@@ -57,20 +57,31 @@ map_by_condition <- function(
       dplyr::filter(chunk_idx == !!chunk_idx) |>
       dplyr::collect()
 
-    # Use dplyr group_split and lapply for cleaner function signature
-    chunk_results <- chunk_data |>
+    # Split data by condition and get condition indices
+    condition_groups <- chunk_data |>
       dplyr::group_by(condition_idx) |>
-      dplyr::group_split() |>
-      lapply(.f, ...)
+      dplyr::group_split(.keep = TRUE)
+
+    # Extract condition indices for naming
+    condition_indices <- sapply(
+      condition_groups,
+      function(x) unique(x$condition_idx)
+    )
+
+    # Apply function to each condition's data
+    chunk_results <- lapply(condition_groups, .f, ...)
+
+    # Name the results with condition indices
+    names(chunk_results) <- as.character(condition_indices)
 
     return(chunk_results)
   })
 
-  # Flatten all chunk results into a single list
-  all_results <- unlist(all_condition_results, recursive = FALSE)
+  # Concatenate all chunk results while preserving condition indexing
+  all_results <- do.call(c, all_condition_results)
 
-  # If .combine is provided and we have multiple results, combine them
-  if (length(all_results) > 1 && !is.null(.combine)) {
+  # If .combine is provided and we have results, combine them
+  if (length(all_results) > 0 && !is.null(.combine)) {
     return(do.call(.combine, all_results))
   } else {
     return(all_results)
