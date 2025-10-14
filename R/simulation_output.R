@@ -52,7 +52,15 @@ simulation_output_dir_to_dataset_dir <- function(output_dir) {
 #' accept a data frame representing one condition's results
 #' @param ... Additional arguments passed to the function .f
 #' @param .combine Function to combine results (default: dplyr::bind_rows)
-#' @param .progress Logical, whether to show a progress bar (default: TRUE)
+#' @param .parallel Logical or NULL. Controls processing method:
+#'   \itemize{
+#'     \item \code{NULL}: Automatically determine based on data size and available cores
+#'     \item \code{TRUE}: Force parallel processing
+#'     \item \code{FALSE}: Force sequential processing
+#'   }
+#' @param .n_cores Integer. Number of CPU cores to use for parallel processing.
+#'   If NULL, uses \code{detectCores() - 1}. Only used when \code{.parallel = TRUE}.
+#' @param .progress Logical, whether to show a progress bar (default: FALSE)
 #' @return A list containing the results of applying .f to each condition,
 #' with names corresponding to condition indices
 #' @export
@@ -61,9 +69,10 @@ map_by_condition <- function(
     .f,
     ...,
     .combine = dplyr::bind_rows,
+    .parallel = NULL,
+    .n_cores = NULL,
     .progress = FALSE) {
   # TODO: persist results to disk if too large
-  # TODO: parallel processing option
 
   # Validate input
   if (!inherits(simulation_output, "multieam_simulation_output")) {
@@ -85,6 +94,11 @@ map_by_condition <- function(
     dplyr::pull(chunk_idx) |>
     sort()
 
+  # Apply heuristic to determine parallel processing
+  if (is.null(.parallel)) {
+    .parallel <- map_by_condition.parallel.heuristic(chunk_indices)
+  }
+
   # Set up progress bar if requested
   if (.progress && requireNamespace("pbapply", quietly = TRUE)) {
     pb_fun <- pbapply::pblapply
@@ -95,8 +109,106 @@ map_by_condition <- function(
     }
   }
 
-  # Process each chunk and collect all condition results
-  all_condition_results <- pb_fun(chunk_indices, function(chunk_idx) {
+  # Define the chunk processing function
+  process_chunk <- map_by_condition.process_chunk(dataset, .f, ...)
+
+  # Process chunks based on parallel preference
+  if (.parallel) {
+    # Setup parallel cluster
+    if (is.null(.n_cores)) {
+      .n_cores <- max(1, parallel::detectCores(logical = FALSE) - 1)
+    }
+    
+    cl <- parallel::makeCluster(min(.n_cores, length(chunk_indices)))
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+
+    # Export required objects and functions to cluster
+    # Note: dataset is not thread-safe, so we export the open_dataset function instead
+    open_dataset_fn <- simulation_output$open_dataset
+    process_chunk_parallel <- map_by_condition.process_chunk(open_dataset_fn, .f, ...)
+    parallel::clusterExport(cl,
+      c("open_dataset_fn", ".f", "process_chunk_parallel", "map_by_condition.process_chunk"),
+      envir = environment()
+    )
+    
+    # Load required packages on cluster nodes
+    parallel::clusterEvalQ(cl, {
+      library(dplyr)
+      library(arrow)
+    })
+
+    # Run parallel processing
+    if (.progress && requireNamespace("pbapply", quietly = TRUE)) {
+      all_condition_results <- pbapply::pblapply(
+        chunk_indices,
+        process_chunk_parallel,
+        cl = cl
+      )
+    } else {
+      if (.progress) {
+        message("Install 'pbapply' package for progress bar support in parallel mode")
+      }
+      all_condition_results <- parallel::parLapply(
+        cl,
+        chunk_indices,
+        process_chunk_parallel
+      )
+    }
+  } else {
+    # Sequential processing
+    all_condition_results <- pb_fun(chunk_indices, process_chunk)
+  }
+
+  # Concatenate all chunk results while preserving condition indexing
+  all_results <- do.call(c, all_condition_results)
+
+  # If .combine is provided and we have results, combine them
+  if (length(all_results) > 0 && !is.null(.combine)) {
+    return(do.call(.combine, all_results))
+  } else {
+    return(all_results)
+  }
+}
+
+
+#' Heuristic to determine if parallel processing should be used
+#'
+#' @param chunk_indices Vector of chunk indices
+#' @return Logical value indicating whether to use parallel processing
+#' @keywords internal
+map_by_condition.parallel.heuristic <- function(chunk_indices) {
+  # Check if parallel package is available and has more than 2 cores
+  # then check if chunk_indices > 5 times the number of cores
+  if (requireNamespace("parallel", quietly = TRUE)) {
+    num_cores <- parallel::detectCores(logical = FALSE)
+    if (!is.na(num_cores) && num_cores > 2 &&
+      length(chunk_indices) > 5 * num_cores) {
+      return(TRUE)
+    } else {
+      return(FALSE)
+    }
+  } else {
+    return(FALSE)
+  }
+}
+
+
+#' Process a single chunk for map_by_condition
+#'
+#' @param open_dataset_fn Arrow dataset object or function that returns a dataset
+#' @param .f Function to apply to each condition's data
+#' @param ... Additional arguments passed to .f
+#' @return Function that processes a chunk_idx
+#' @keywords internal
+map_by_condition.process_chunk <- function(open_dataset_fn, .f, ...) {
+  function(chunk_idx) {
+    # Get the dataset (either use directly or call function)
+    dataset <- if (is.function(open_dataset_fn)) {
+      open_dataset_fn()
+    } else {
+      open_dataset_fn
+    }
+    
     # Load this chunk's data
     chunk_data <- dataset |>
       dplyr::filter(chunk_idx == !!chunk_idx) |>
@@ -120,15 +232,5 @@ map_by_condition <- function(
     names(chunk_results) <- as.character(condition_indices)
 
     return(chunk_results)
-  })
-
-  # Concatenate all chunk results while preserving condition indexing
-  all_results <- do.call(c, all_condition_results)
-
-  # If .combine is provided and we have results, combine them
-  if (length(all_results) > 0 && !is.null(.combine)) {
-    return(do.call(.combine, all_results))
-  } else {
-    return(all_results)
   }
 }
