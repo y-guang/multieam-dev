@@ -1,7 +1,7 @@
 #' Create a multieam_simulation_output object
 #'
 #' @keywords internal
-new_multieam_simulation_output <- function(
+new_simulation_output <- function(
     simulation_config,
     output_dir) {
   # validate inputs

@@ -536,7 +536,7 @@ run_simulation <- function(config, output_dir = NULL) {
     )
   }
 
-  ret <- new_multieam_simulation_output(
+  ret <- new_simulation_output(
     simulation_config = config,
     output_dir = output_dir
   )
@@ -666,7 +666,7 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Rebuild the output object
-  ret <- new_multieam_simulation_output(
+  ret <- new_simulation_output(
     simulation_config = config,
     output_dir = output_dir
   )
