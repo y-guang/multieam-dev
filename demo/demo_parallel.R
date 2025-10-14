@@ -52,13 +52,13 @@ sim_config <- new_simulation_config(
   noise_factory = noise_factory,
   model = "ddm",
   parallel = TRUE,
-  n_cores = NULL,  # Will use default: detectCores() - 1
-  rand_seed = NULL  # Will use default random seed
+  n_cores = NULL, # Will use default: detectCores() - 1
+  rand_seed = NULL # Will use default random seed
 )
 print(sim_config)
 
 # create temporary output path
-temp_output_path = tempfile("multieam_demo_output")
+temp_output_path <- tempfile("multieam_demo_output")
 # remove if exists
 if (dir.exists(temp_output_path)) {
   unlink(temp_output_path, recursive = TRUE)
@@ -76,7 +76,7 @@ sim_output <- run_simulation(
 print(sim_output$simulation_config)
 
 # load data into memory
-df <- as.data.frame(sim_output$dataset)
+df <- as.data.frame(sim_output$open_dataset())
 
 # re-load a dataset from the output path
 sim_output_reloaded <- load_simulation_output(temp_output_path)
@@ -88,7 +88,7 @@ condition_summary <- map_by_condition(
       condition_idx = dplyr::first(condition_idx),
       rt_mean = mean(rt),
       rt_sd = sd(rt)
-      )
-    },
+    )
+  },
   .progress = TRUE # turn on progress bar
 )

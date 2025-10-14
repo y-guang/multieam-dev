@@ -75,7 +75,7 @@ map_by_condition <- function(
   }
 
   # Get the dataset
-  dataset <- simulation_output$dataset
+  dataset <- simulation_output$open_dataset()
 
   # Gather all chunk indices
   chunk_indices <- dataset |>
