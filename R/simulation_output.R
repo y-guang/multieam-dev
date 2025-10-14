@@ -20,6 +20,9 @@ map_by_condition <- function(
     ...,
     .combine = dplyr::bind_rows,
     .progress = FALSE) {
+  # TODO: persist results to disk if too large
+  # TODO: parallel processing option
+
   # Validate input
   if (!inherits(simulation_output, "multieam_simulation_output")) {
     stop("simulation_output must be a multieam_simulation_output object")
