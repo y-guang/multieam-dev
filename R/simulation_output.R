@@ -1,3 +1,45 @@
+#' Create a multieam_simulation_output object
+#'
+#' @keywords internal
+new_multieam_simulation_output <- function(
+    simulation_config,
+    output_dir) {
+  # validate inputs
+  if (!inherits(simulation_config, "multieam_simulation_config")) {
+    stop("simulation_config must be a multieam_simulation_config object")
+  }
+
+  if (!dir.exists(output_dir)) {
+    stop("output_dir does not exist: ", output_dir)
+  }
+
+  # Get the dataset directory
+  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
+
+  # Create the output object
+  ret <- list(
+    simulation_config = simulation_config,
+    output_dir = output_dir,
+    open_dataset = local({
+      dataset_dir <- simulation_dataset_dir
+      function() {
+        arrow::open_dataset(dataset_dir)
+      }
+    })
+  )
+
+  # Create S3 object
+  structure(ret, class = "multieam_simulation_output")
+}
+
+#' Get the dataset directory from the simulation output directory
+#'
+#' @keywords internal
+simulation_output_dir_to_dataset_dir <- function(output_dir) {
+  file.path(output_dir, "simulation_dataset")
+}
+
+
 #' Map a function by condition across simulation output chunks
 #'
 #' This function processes simulation output by gathering all chunks, iterating

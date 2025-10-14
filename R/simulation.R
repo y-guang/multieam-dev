@@ -522,7 +522,7 @@ run_simulation <- function(config, output_dir = NULL) {
     stop("Output directory must be empty: ", output_dir)
   }
 
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
 
   if (config$parallel) {
     run_simulation_parallel(
@@ -536,13 +536,10 @@ run_simulation <- function(config, output_dir = NULL) {
     )
   }
 
-  ret <- list(
+  ret <- new_multieam_simulation_output(
     simulation_config = config,
-    output_dir = output_dir,
-    dataset = arrow::open_dataset(simulation_dataset_dir)
+    output_dir = output_dir
   )
-  # Create S3 object
-  ret <- structure(ret, class = "multieam_simulation_output")
 
   # persist the config
   saveRDS(config, file = file.path(output_dir, "simulation_config.rds"))
@@ -652,7 +649,7 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Check for simulation dataset directory
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
   if (!dir.exists(simulation_dataset_dir)) {
     stop(
       "Simulation dataset directory not found: ", simulation_dataset_dir,
@@ -669,13 +666,10 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Rebuild the output object
-  ret <- list(
+  ret <- new_multieam_simulation_output(
     simulation_config = config,
-    output_dir = output_dir,
-    dataset = arrow::open_dataset(simulation_dataset_dir)
+    output_dir = output_dir
   )
-  # Create S3 object
-  ret <- structure(ret, class = "multieam_simulation_output")
 
   return(ret)
 }
