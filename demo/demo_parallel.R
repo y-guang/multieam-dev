@@ -90,5 +90,6 @@ condition_summary <- map_by_condition(
       rt_sd = sd(rt)
     )
   },
-  .progress = TRUE # turn on progress bar
+  .progress = TRUE, # turn on progress bar
+  .parallel = TRUE
 )

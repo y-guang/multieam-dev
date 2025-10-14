@@ -27,7 +27,7 @@ new_simulation_config <- function(
     prior_formulas = list(),
     between_trial_formulas = list(),
     item_formulas = list(),
-    n_conditions_per_chunk,
+    n_conditions_per_chunk = NULL,
     n_conditions,
     n_trials_per_condition,
     n_items,
@@ -57,13 +57,14 @@ new_simulation_config <- function(
 
   # default chunk size
   if (is.null(n_conditions_per_chunk)) {
-    if (parallel) {
-      n_partitions <- ceiling(sqrt(n_conditions))
-      n_partitions <- max(n_cores, min(n_partitions, n_cores * 10))
-      n_conditions_per_chunk <- ceiling(n_conditions / n_partitions)
-    } else {
-      n_conditions_per_chunk <- n_conditions
-    }
+    n_conditions_per_chunk <- 
+    new_simulation_config.chunk_size.heuristic(
+      n_conditions = n_conditions,
+      n_trials_per_condition = n_trials_per_condition,
+      n_items = n_items,
+      parallel = parallel,
+      n_cores = n_cores
+    )
   }
 
   # default random seed for parallel processing
@@ -284,4 +285,43 @@ print.multieam_simulation_config <- function(x, ...) {
   cat("  Item formulas:", length(x$item_formulas), "\n")
 
   invisible(x)
+}
+
+#' Heuristic to calculate optimal chunk size for simulation configuration
+#'
+#' @param n_conditions Total number of conditions to simulate
+#' @param n_trials_per_condition Number of trials per condition
+#' @param n_items Number of items per trial
+#' @param parallel Whether to run in parallel
+#' @param n_cores Number of cores for parallel processing
+#' @return Optimal number of conditions per chunk
+#' @keywords internal
+new_simulation_config.chunk_size.heuristic <- function(
+    n_conditions,
+    n_trials_per_condition,
+    n_items,
+    parallel,
+    n_cores) {
+  # Initial chunk size calculation
+  if (parallel) {
+    n_partitions <- ceiling(sqrt(n_conditions))
+    n_partitions <- max(n_cores, min(n_partitions, n_cores * 10))
+    n_conditions_per_chunk <- ceiling(n_conditions / n_partitions)
+  } else {
+    n_conditions_per_chunk <- n_conditions
+  }
+  
+  # Apply data size constraint: n_items * n_trials_per_condition * n_conditions_per_chunk < 200,000
+  max_chunk_data_size <- 200000
+  data_per_condition <- n_items * n_trials_per_condition
+  max_conditions_per_chunk <- floor(max_chunk_data_size / data_per_condition)
+  
+  if (max_conditions_per_chunk > 0 && n_conditions_per_chunk > max_conditions_per_chunk) {
+    n_conditions_per_chunk <- max_conditions_per_chunk
+  }
+  
+  # Ensure at least 1 condition per chunk
+  n_conditions_per_chunk <- max(1, n_conditions_per_chunk)
+  
+  return(n_conditions_per_chunk)
 }
