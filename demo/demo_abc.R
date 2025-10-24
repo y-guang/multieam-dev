@@ -76,12 +76,12 @@ sim_output <- run_simulation(
 )
 
 #####################
-# output processing #
+# abc model prepare #
 #####################
 # preview the output data
 head(sim_output$open_dataset())
 
-# summarise
+# define the summary procedure
 summary_pipe <- function(df) {
   summarise_by(
     df,
@@ -98,6 +98,7 @@ summary_pipe <- function(df) {
     )
 }
 
+# summarise simulation output
 simulation_sumstat <- map_by_condition(
   sim_output,
   .progress = TRUE,
@@ -111,20 +112,25 @@ simulation_sumstat <- map_by_condition(
   }
 )
 
+# summarized observed/target data
 # pretend observed data is condition 1
+# you should load your own observed data here and rename columns accordingly
 observed_data <- sim_output$open_dataset() |>
   dplyr::filter(chunk_idx == 1, condition_idx == 1) |>
   dplyr::collect()
-
-target_summary <- summary_pipe(observed_data)
+target_sumstat <- summary_pipe(observed_data)
 
 # Prepare data for ABC fitting
-abc_input <- prepare_abc_input(
+abc_input <- build_abc_input(
   simulation_output = sim_output,
   simulation_summary = simulation_sumstat,
-  target_summary = target_summary,
+  target_summary = target_sumstat,
   param = c("A_beta_0", "A_beta_1", "V_beta_0", "V_beta_1", "ndt", "sigma")
 )
+
+#####################
+# ABC model fitting #
+#####################
 
 abc_rejection <- abc::abc(
   target = abc_input$target,
