@@ -1,4 +1,5 @@
 exportPattern("^[[:alpha:]]+")
 S3method(print, multieam_simulation_config)
+S3method("+", multieam_summarise_by_tbl)
 useDynLib(multieam)
 importFrom(Rcpp, sourceCpp)
