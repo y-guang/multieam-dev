@@ -94,16 +94,16 @@ summarise_by <- function(
     dplyr::group_split(.data, dplyr::across(dplyr::all_of(.by)))
   }
 
-  # evaluate
-  purrr::map_dfr(grouped, function(sub_df) {
+  # evaluate - use lapply for better performance, then bind efficiently
+  result_list <- lapply(grouped, function(sub_df) {
+    # Extract key values efficiently (group_split returns ungrouped data)
     key_vals <- if (is.null(.by)) {
       list()
     } else {
-      as.list(
-        dplyr::slice_head(
-          dplyr::ungroup(sub_df),
-          n = 1
-        )[, .by, drop = FALSE]
+      # Direct extraction from first row - much faster
+      stats::setNames(
+        lapply(.by, function(col) sub_df[[col]][1]),
+        .by
       )
     }
 
@@ -113,10 +113,11 @@ summarise_by <- function(
 
       val <- rlang::eval_tidy(expr, data = sub_df)
 
-      if (is.list(val) || length(val) > 1) {
+      # Check length first (faster for atomic vectors)
+      if (length(val) > 1 || is.list(val)) {
         nm <- names(val)
-        if (is.null(nm) || any(nm == "")) {
-          # No names: use X1, X2, etc.
+        if (is.null(nm) || any(!nzchar(nm))) {
+          # No names or empty names: use X1, X2, etc.
           nm <- paste0(colname, "_X", seq_along(val))
         } else {
           # Has names: use assigned_name_original_name
@@ -128,19 +129,27 @@ summarise_by <- function(
       }
     }) |> purrr::flatten()
 
-    tibble::as_tibble(c(key_vals, vals))
+    c(key_vals, vals)
   })
+
+  # Efficient row binding
+  dplyr::bind_rows(result_list)
 }
 
 # summarise
 condition_summary <- map_by_condition(
   sim_output,
   function(cond_df) {
+    # clean data here
+    complete_df <- cond_df |>
+      dplyr::filter(!is.na(rt))
+
+    # extract the summary
     summarise_by(
-      cond_df,
+      complete_df,
       .by = c("condition_idx", "item_idx"),
       rt_mean = mean(rt),
-      quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
+      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
     )
   }
 )
