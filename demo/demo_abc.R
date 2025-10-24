@@ -216,6 +216,133 @@ summarise_by <- function(
   result
 }
 
+prepare_abc_input <- function(
+    simulation_output,
+    summary,
+    param) {
+  # Validate inputs
+  if (!inherits(simulation_output, "multieam_simulation_output")) {
+    stop("simulation_output must be a multieam_simulation_output object")
+  }
+
+  if (!is.data.frame(summary)) {
+    stop("summary must be a data frame or tibble")
+  }
+
+  if (!is.character(param) || length(param) == 0) {
+    stop("param must be a non-empty character vector")
+  }
+
+  # NSE variable bindings for R CMD check
+  condition_idx <- chunk_idx <- NULL
+
+  # Get the dataset
+  dataset <- simulation_output$open_dataset()
+
+  select_cols <- c("chunk_idx", "condition_idx", param)
+
+  # Check if all requested parameters exist in the dataset
+  available_cols <- names(dataset)
+  missing_params <- setdiff(param, available_cols)
+  if (length(missing_params) > 0) {
+    stop(
+      "The following parameters are not available in the output:\n  ",
+      paste(missing_params, collapse = ", "),
+      "\n\nAvailable columns:\n  ",
+      paste(setNames(available_cols, NULL), collapse = ", ")
+    )
+  }
+
+  # Extract parameters - get one row per condition
+  param_df <- dataset |>
+    dplyr::select(dplyr::all_of(select_cols)) |>
+    dplyr::distinct(chunk_idx, condition_idx, .keep_all = TRUE) |>
+    dplyr::select(-chunk_idx) |>
+    dplyr::arrange(condition_idx) |>
+    dplyr::collect()
+
+  # Process summary statistics
+  # Get wider_by attribute to determine which columns to exclude
+  wider_by <- attr(summary, "wider_by")
+  if (is.null(wider_by)) {
+    # Default to condition_idx if no wider_by attribute
+    wider_by <- "condition_idx"
+    warning(
+      "summary does not have a 'wider_by' attribute. ",
+      "Defaulting to excluding 'condition_idx' column only."
+    )
+  }
+
+  # Validate that summary has condition_idx for alignment
+  if (!"condition_idx" %in% names(summary)) {
+    stop("summary must contain a 'condition_idx' column for join")
+  }
+
+  # Sort summary by condition_idx
+  summary_sorted <- summary |>
+    dplyr::arrange(condition_idx)
+
+  # Filter to only include conditions that exist in both
+  # Both are already sorted, so we can use efficient semi_join
+  param_conditions <- param_df$condition_idx
+  summary_conditions <- summary_sorted$condition_idx
+
+  # Check if filtering is needed
+  if (!identical(param_conditions, summary_conditions)) {
+    # Use semi_join for efficient filtering (keeps only matching rows)
+    param_df <- param_df |>
+      dplyr::semi_join(summary_sorted, by = "condition_idx")
+
+    summary_sorted <- summary_sorted |>
+      dplyr::semi_join(param_df, by = "condition_idx")
+
+    # Report what was excluded
+    n_excluded_from_param <- length(param_conditions) - nrow(param_df)
+    n_excluded_from_summary <- length(summary_conditions) - nrow(summary_sorted)
+
+    if (n_excluded_from_param > 0 || n_excluded_from_summary > 0) {
+      message(
+        "Filtered to common conditions:\n",
+        "  Excluded from parameters: ", n_excluded_from_param, " conditions\n",
+        "  Excluded from summary: ", n_excluded_from_summary, " conditions\n",
+        "  Remaining conditions: ", nrow(param_df)
+      )
+    }
+  }
+
+  # Convert parameters to matrix (exclude condition_idx)
+  param_matrix <- as.matrix(param_df[, param, drop = FALSE])
+  rownames(param_matrix) <- param_df$condition_idx
+
+  # Extract summary statistics (exclude wider_by columns)
+  sumstat_cols <- setdiff(names(summary_sorted), wider_by)
+
+  if (length(sumstat_cols) == 0) {
+    stop(
+      "No summary statistic columns found after excluding wider_by columns.\n",
+      "  wider_by: ", paste(wider_by, collapse = ", "), "\n",
+      "  All columns: ", paste(names(summary_sorted), collapse = ", ")
+    )
+  }
+
+  # Convert summary statistics to matrix
+  sumstat_matrix <- as.matrix(summary_sorted[, sumstat_cols, drop = FALSE])
+  rownames(sumstat_matrix) <- summary_sorted$condition_idx
+
+  # Return list suitable for abc::abc
+  result <- list(
+    param = param_matrix,
+    sumstat = sumstat_matrix,
+    param_names = param,
+    sumstat_names = sumstat_cols,
+    output = simulation_output,
+    summary = summary
+  )
+  return(result)
+}
+
+
+
 # summarise
 condition_summary <- map_by_condition(
   sim_output,
@@ -233,11 +360,27 @@ condition_summary <- map_by_condition(
       rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
       lm_coef = lm(rt ~ item_idx)$coefficients
     ) +
-    summarise_by(
-      complete_df,
-      .by = c("condition_idx", "item_idx"),
-      rt_mean = mean(rt),
-      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
-    )
+      summarise_by(
+        complete_df,
+        .by = c("condition_idx", "item_idx"),
+        rt_mean = mean(rt),
+        rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
+      )
   }
+)
+
+
+# Prepare data for ABC fitting
+abc_input <- prepare_abc_input(
+  simulation_output = sim_output,
+  summary = condition_summary,
+  param = c("A_beta_0", "A_beta_1", "V_beta_0", "V_beta_1", "ndt", "sigma")
+)
+
+# pretend observed data is condition 1
+
+
+
+abc::abc(
+
 )
