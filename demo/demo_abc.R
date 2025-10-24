@@ -86,9 +86,17 @@ summary_pipe <- function(df) {
   summarise_by(
     df,
     .by = c("condition_idx"),
+    # single value
     rt_mean = mean(rt),
+    # named vector
     rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
-    lm_coef = lm(rt ~ item_idx)$coefficients
+    # regression coefficients
+    lm_coef = lm(rt ~ item_idx)$coefficients,
+    # complex functions
+    aic = {
+      model <- glm(rt ~ item_idx, family = gaussian())
+      summary(model)$aic
+    }
   ) +
     summarise_by(
       df,
