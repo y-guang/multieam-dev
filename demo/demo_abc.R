@@ -88,6 +88,17 @@ summarise_by <- function(
     .wider_by = c("condition_idx")) {
   dots <- rlang::enquos(...)
 
+  # Validate that .wider_by is a subset of .by
+  if (!all(.wider_by %in% .by)) {
+    stop(
+      ".wider_by must be a subset of .by.\n",
+      "  .by = c(", paste0('"', .by, '"', collapse = ", "), ")\n",
+      "  .wider_by = c(", paste0('"', .wider_by, '"', collapse = ", "), ")\n",
+      "  Invalid columns in .wider_by: ",
+      paste0('"', setdiff(.wider_by, .by), '"', collapse = ", ")
+    )
+  }
+
   # group_by
   grouped <- if (is.null(.by)) {
     list(.data)
@@ -181,5 +192,7 @@ condition_summary <- map_by_condition(
       rt_mean = mean(rt),
       rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
     )
-  }
+  },
+  .parallel = FALSE,
+  .progress = TRUE
 )
