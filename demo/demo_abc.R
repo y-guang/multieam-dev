@@ -174,12 +174,52 @@ summarise_by <- function(
     )
   }
 
+  # assign the class and store .wider_by as attribute
+  class(result_df) <- c("multieam_summarise_by_tbl", class(result_df))
+  attr(result_df, "wider_by") <- .wider_by
+
   result_df
+}
+
+# Define + operator for multieam_summarise_by_tbl
+`+.multieam_summarise_by_tbl` <- function(e1, e2) {
+  # Only process if both are multieam_summarise_by_tbl
+  if (!inherits(e1, "multieam_summarise_by_tbl") ||
+    !inherits(e2, "multieam_summarise_by_tbl")) {
+    # Not our class duty - fall back to default
+    return(NextMethod("+"))
+  }
+
+  # Get .wider_by from both tables
+  wider_by_1 <- attr(e1, "wider_by")
+  wider_by_2 <- attr(e2, "wider_by")
+
+  # Check if .wider_by attributes are identical
+  if (!identical(wider_by_1, wider_by_2)) {
+    stop(
+      "Cannot join tables with different .wider_by attributes.\n",
+      "  Table 1 .wider_by: c(",
+      paste0('"', wider_by_1, '"', collapse = ", "), ")\n",
+      "  Table 2 .wider_by: c(",
+      paste0('"', wider_by_2, '"', collapse = ", "), ")\n",
+      "  Both tables must have the same .wider_by for joining."
+    )
+  }
+
+  # Join the two tables by the .wider_by columns
+  result <- dplyr::full_join(e1, e2, by = wider_by_1)
+
+  # Preserve the class and .wider_by attribute
+  class(result) <- c("multieam_summarise_by_tbl", class(result))
+  attr(result, "wider_by") <- wider_by_1
+
+  result
 }
 
 # summarise
 condition_summary <- map_by_condition(
   sim_output,
+  .progress = TRUE,
   function(cond_df) {
     # clean data here
     complete_df <- cond_df |>
@@ -188,11 +228,16 @@ condition_summary <- map_by_condition(
     # extract the summary
     summarise_by(
       complete_df,
+      .by = c("condition_idx"),
+      rt_mean = mean(rt),
+      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
+      lm_coef = lm(rt ~ item_idx)$coefficients
+    ) +
+    summarise_by(
+      complete_df,
       .by = c("condition_idx", "item_idx"),
       rt_mean = mean(rt),
       rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
     )
-  },
-  .parallel = FALSE,
-  .progress = TRUE
+  }
 )
