@@ -81,33 +81,45 @@ sim_output <- run_simulation(
 # preview the output data
 head(sim_output$open_dataset())
 
-summarise_by <- function(.data, .by = NULL, ...) {
+summarise_by <- function(
+    .data,
+    .by = c("condition_idx"),
+    ...) {
   dots <- rlang::enquos(...)
 
   # group_by
-  grouped <- if (is.null(.by)) list(.data)
-  else dplyr::group_split(.data, dplyr::across(dplyr::all_of(.by)))
-
+  grouped <- if (is.null(.by)) {
+    list(.data)
+  } else {
+    dplyr::group_split(.data, dplyr::across(dplyr::all_of(.by)))
+  }
 
   # evaluate
   purrr::map_dfr(grouped, function(sub_df) {
-    key_vals <- if (is.null(.by)) list() else
-      as.list(dplyr::slice_head(dplyr::ungroup(sub_df), n = 1)[, .by, drop = FALSE])
+    key_vals <- if (is.null(.by)) {
+      list()
+    } else {
+      as.list(
+        dplyr::slice_head(
+          dplyr::ungroup(sub_df),
+          n = 1
+        )[, .by, drop = FALSE]
+      )
+    }
 
     vals <- purrr::imap(dots, function(expr, name) {
-      if (rlang::is_symbol(rlang::ensym(name))) {
-        colname <- rlang::quo_name(expr)
-      } else {
-        colname <- name
-      }
+      # Use the assigned name directly if provided, not the expression text
+      colname <- name
 
       val <- rlang::eval_tidy(expr, data = sub_df)
 
       if (is.list(val) || length(val) > 1) {
         nm <- names(val)
         if (is.null(nm) || any(nm == "")) {
-          nm <- paste0(colname, "_", seq_along(val))
+          # No names: use X1, X2, etc.
+          nm <- paste0(colname, "_X", seq_along(val))
         } else {
+          # Has names: use assigned_name_original_name
           nm <- paste0(colname, "_", nm)
         }
         stats::setNames(as.list(val), nm)
@@ -124,20 +136,11 @@ summarise_by <- function(.data, .by = NULL, ...) {
 condition_summary <- map_by_condition(
   sim_output,
   function(cond_df) {
-    # cond_df |>
-    #   dplyr::group_by(condition_idx, item_idx) |>
-    #   dplyr::summarise(
-    #   rt_mean = mean(rt),
-    #   !!!as.list(quantile(rt, probs = 0.1)),
-    #   .groups = "drop"
-    # )
-
     summarise_by(
       cond_df,
       .by = c("condition_idx", "item_idx"),
       rt_mean = mean(rt),
-      quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9))
+      quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
     )
   }
 )
-
