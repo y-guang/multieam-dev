@@ -218,15 +218,20 @@ summarise_by <- function(
 
 prepare_abc_input <- function(
     simulation_output,
-    summary,
+    simulation_summary,
+    target_summary,
     param) {
   # Validate inputs
   if (!inherits(simulation_output, "multieam_simulation_output")) {
     stop("simulation_output must be a multieam_simulation_output object")
   }
 
-  if (!is.data.frame(summary)) {
-    stop("summary must be a data frame or tibble")
+  if (!is.data.frame(simulation_summary)) {
+    stop("simulation_summary must be a data frame or tibble")
+  }
+
+  if (!is.data.frame(target_summary)) {
+    stop("target_summary must be a data frame or tibble")
   }
 
   if (!is.character(param) || length(param) == 0) {
@@ -261,25 +266,25 @@ prepare_abc_input <- function(
     dplyr::arrange(condition_idx) |>
     dplyr::collect()
 
-  # Process summary statistics
+  # Process simulation summary statistics
   # Get wider_by attribute to determine which columns to exclude
-  wider_by <- attr(summary, "wider_by")
+  wider_by <- attr(simulation_summary, "wider_by")
   if (is.null(wider_by)) {
     # Default to condition_idx if no wider_by attribute
     wider_by <- "condition_idx"
     warning(
-      "summary does not have a 'wider_by' attribute. ",
+      "simulation_summary does not have a 'wider_by' attribute. ",
       "Defaulting to excluding 'condition_idx' column only."
     )
   }
 
-  # Validate that summary has condition_idx for alignment
-  if (!"condition_idx" %in% names(summary)) {
-    stop("summary must contain a 'condition_idx' column for join")
+  # Validate that simulation_summary has condition_idx for alignment
+  if (!"condition_idx" %in% names(simulation_summary)) {
+    stop("simulation_summary must contain a 'condition_idx' column for join")
   }
 
-  # Sort summary by condition_idx
-  summary_sorted <- summary |>
+  # Sort simulation_summary by condition_idx
+  summary_sorted <- simulation_summary |>
     dplyr::arrange(condition_idx)
 
   # Filter to only include conditions that exist in both
@@ -329,14 +334,46 @@ prepare_abc_input <- function(
   sumstat_matrix <- as.matrix(summary_sorted[, sumstat_cols, drop = FALSE])
   rownames(sumstat_matrix) <- summary_sorted$condition_idx
 
+  # Process target summary
+  # Get wider_by attribute from target_summary (should match simulation_summary)
+  target_wider_by <- attr(target_summary, "wider_by")
+  if (is.null(target_wider_by)) {
+    target_wider_by <- "condition_idx"
+    warning(
+      "target_summary does not have a 'wider_by' attribute. ",
+      "Defaulting to excluding 'condition_idx' column only."
+    )
+  }
+
+  # Extract target summary statistics (exclude wider_by columns)
+  target_sumstat_cols <- setdiff(names(target_summary), target_wider_by)
+
+  # Validate that target has the same summary statistics as simulation
+  if (!identical(sort(target_sumstat_cols), sort(sumstat_cols))) {
+    missing_in_target <- setdiff(sumstat_cols, target_sumstat_cols)
+    extra_in_target <- setdiff(target_sumstat_cols, sumstat_cols)
+    
+    error_msg <- "target_summary and simulation_summary must have the same summary statistic columns.\n"
+    if (length(missing_in_target) > 0) {
+      error_msg <- paste0(error_msg, "  Missing in target: ", paste(missing_in_target, collapse = ", "), "\n")
+    }
+    if (length(extra_in_target) > 0) {
+      error_msg <- paste0(error_msg, "  Extra in target: ", paste(extra_in_target, collapse = ", "), "\n")
+    }
+    stop(error_msg)
+  }
+
+  # Convert target to vector (ensure same order as sumstat_matrix columns)
+  target_vector <- as.numeric(target_summary[1, sumstat_cols])
+  names(target_vector) <- sumstat_cols
+
   # Return list suitable for abc::abc
   result <- list(
     param = param_matrix,
     sumstat = sumstat_matrix,
+    target = target_vector,
     param_names = param,
-    sumstat_names = sumstat_cols,
-    output = simulation_output,
-    summary = summary
+    sumstat_names = sumstat_cols
   )
   return(result)
 }
@@ -344,7 +381,23 @@ prepare_abc_input <- function(
 
 
 # summarise
-condition_summary <- map_by_condition(
+summary_pipe <- function(df) {
+  summarise_by(
+    df,
+    .by = c("condition_idx"),
+    rt_mean = mean(rt),
+    rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
+    lm_coef = lm(rt ~ item_idx)$coefficients
+  ) +
+    summarise_by(
+      df,
+      .by = c("condition_idx", "item_idx"),
+      rt_mean = mean(rt),
+      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9))
+    )
+}
+
+simulation_sumstat <- map_by_condition(
   sim_output,
   .progress = TRUE,
   function(cond_df) {
@@ -353,34 +406,23 @@ condition_summary <- map_by_condition(
       dplyr::filter(!is.na(rt))
 
     # extract the summary
-    summarise_by(
-      complete_df,
-      .by = c("condition_idx"),
-      rt_mean = mean(rt),
-      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
-      lm_coef = lm(rt ~ item_idx)$coefficients
-    ) +
-      summarise_by(
-        complete_df,
-        .by = c("condition_idx", "item_idx"),
-        rt_mean = mean(rt),
-        rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9)),
-      )
+    summary_pipe(complete_df)
   }
 )
 
+# pretend observed data is condition 1
+observed_data <- sim_output$open_dataset() |>
+  dplyr::filter(chunk_idx == 1, condition_idx == 1) |>
+  dplyr::collect()
+
+target_summary <- summary_pipe(observed_data)
 
 # Prepare data for ABC fitting
 abc_input <- prepare_abc_input(
   simulation_output = sim_output,
-  summary = condition_summary,
+  simulation_summary = simulation_sumstat,
+  target_summary = target_summary,
   param = c("A_beta_0", "A_beta_1", "V_beta_0", "V_beta_1", "ndt", "sigma")
 )
 
-# pretend observed data is condition 1
-
-
-
-abc::abc(
-
-)
+abc::abc()
