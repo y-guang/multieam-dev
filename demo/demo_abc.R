@@ -288,32 +288,12 @@ prepare_abc_input <- function(
     dplyr::arrange(condition_idx)
 
   # Filter to only include conditions that exist in both
-  # Both are already sorted, so we can use efficient semi_join
-  param_conditions <- param_df$condition_idx
-  summary_conditions <- summary_sorted$condition_idx
+  # Use semi_join for efficient filtering (keeps only matching rows)
+  param_df <- param_df |>
+    dplyr::semi_join(summary_sorted, by = "condition_idx")
 
-  # Check if filtering is needed
-  if (!identical(param_conditions, summary_conditions)) {
-    # Use semi_join for efficient filtering (keeps only matching rows)
-    param_df <- param_df |>
-      dplyr::semi_join(summary_sorted, by = "condition_idx")
-
-    summary_sorted <- summary_sorted |>
-      dplyr::semi_join(param_df, by = "condition_idx")
-
-    # Report what was excluded
-    n_excluded_from_param <- length(param_conditions) - nrow(param_df)
-    n_excluded_from_summary <- length(summary_conditions) - nrow(summary_sorted)
-
-    if (n_excluded_from_param > 0 || n_excluded_from_summary > 0) {
-      message(
-        "Filtered to common conditions:\n",
-        "  Excluded from parameters: ", n_excluded_from_param, " conditions\n",
-        "  Excluded from summary: ", n_excluded_from_summary, " conditions\n",
-        "  Remaining conditions: ", nrow(param_df)
-      )
-    }
-  }
+  summary_sorted <- summary_sorted |>
+    dplyr::semi_join(param_df, by = "condition_idx")
 
   # Convert parameters to matrix (exclude condition_idx)
   param_matrix <- as.matrix(param_df[, param, drop = FALSE])
@@ -348,19 +328,26 @@ prepare_abc_input <- function(
   # Extract target summary statistics (exclude wider_by columns)
   target_sumstat_cols <- setdiff(names(target_summary), target_wider_by)
 
-  # Validate that target has the same summary statistics as simulation
+  # Check if target has the same summary statistics as simulation
   if (!identical(sort(target_sumstat_cols), sort(sumstat_cols))) {
     missing_in_target <- setdiff(sumstat_cols, target_sumstat_cols)
     extra_in_target <- setdiff(target_sumstat_cols, sumstat_cols)
-    
-    error_msg <- "target_summary and simulation_summary must have the same summary statistic columns.\n"
+
+    warning_msg <- "target_summary and simulation_summary have
+    different columns - ABC will NOT WORK!"
     if (length(missing_in_target) > 0) {
-      error_msg <- paste0(error_msg, "  Missing in target: ", paste(missing_in_target, collapse = ", "), "\n")
+      warning_msg <- paste0(
+        warning_msg, "\n  Missing in target: ",
+        paste(missing_in_target, collapse = ", ")
+      )
     }
     if (length(extra_in_target) > 0) {
-      error_msg <- paste0(error_msg, "  Extra in target: ", paste(extra_in_target, collapse = ", "), "\n")
+      warning_msg <- paste0(
+        warning_msg, "\n  Extra in target: ",
+        paste(extra_in_target, collapse = ", ")
+      )
     }
-    stop(error_msg)
+    warning(warning_msg)
   }
 
   # Convert target to vector (ensure same order as sumstat_matrix columns)
@@ -425,4 +412,10 @@ abc_input <- prepare_abc_input(
   param = c("A_beta_0", "A_beta_1", "V_beta_0", "V_beta_1", "ndt", "sigma")
 )
 
-abc::abc()
+abc_rejection <- abc::abc(
+  target = abc_input$target,
+  param = abc_input$param,
+  sumstat = abc_input$sumstat,
+  tol = 0.05,
+  method = "rejection"
+)
