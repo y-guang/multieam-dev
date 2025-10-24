@@ -83,8 +83,9 @@ head(sim_output$open_dataset())
 
 summarise_by <- function(
     .data,
+    ...,
     .by = c("condition_idx"),
-    ...) {
+    .wider_by = c("condition_idx")) {
   dots <- rlang::enquos(...)
 
   # group_by
@@ -133,7 +134,36 @@ summarise_by <- function(
   })
 
   # Efficient row binding
-  dplyr::bind_rows(result_list)
+  result_df <- dplyr::bind_rows(result_list)
+
+  # Pivot wider if .by and .wider_by are different
+  pivot_cols <- setdiff(.by, .wider_by)
+
+  if (length(pivot_cols) > 0) {
+    # Get all value columns (not in .by)
+    value_cols <- setdiff(names(result_df), .by)
+
+    # Create a combined column for pivoting with structured names
+    # e.g., "item_idx_1", "item_idx_2"
+    result_df$.pivot_key <- do.call(
+      paste,
+      c(
+        lapply(pivot_cols, function(col) paste0(col, "_", result_df[[col]])),
+        list(sep = "_")
+      )
+    )
+
+    # Pivot wider: spread pivot_cols across columns
+    result_df <- tidyr::pivot_wider(
+      result_df,
+      id_cols = dplyr::all_of(.wider_by),
+      names_from = ".pivot_key",
+      values_from = dplyr::all_of(value_cols),
+      names_sep = "_"
+    )
+  }
+
+  result_df
 }
 
 # summarise
