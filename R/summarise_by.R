@@ -13,9 +13,9 @@
 #' @param ... Summary expressions to evaluate for each group, using dplyr-style
 #'   syntax. Named arguments become column names in the output.
 #' @param .by Character vector of column names to group by (default: "condition_idx")
-#' @param .wider_by Character vector of column names to keep as identifying columns
-#'   after pivoting wider (default: "condition_idx"). Must be a subset of .by.
-#'   If different from .by, the remaining columns in .by will be pivoted across
+#' @param .wider_by Character vector of column names to keep as identifying
+#'   columns after pivoting wider (default: "condition_idx"). Must be a subset of
+#'   .by. If different from .by, the remaining columns in .by will be pivoted across
 #'   the result.
 #' @return If `.data` is provided: A data frame with class "multieam_summarise_by_tbl"
 #'   containing the summarised and potentially pivoted results.
@@ -27,7 +27,7 @@ summarise_by <- function(
     .by = c("condition_idx"),
     .wider_by = c("condition_idx")) {
   dots <- rlang::enquos(...)
-  
+
   # If .data is missing or NULL, return a spec object for delayed evaluation
   if (is.null(.data)) {
     spec_list <- list(
@@ -37,16 +37,16 @@ summarise_by <- function(
         .wider_by = .wider_by
       )
     )
-    
+
     # Create a function that captures the spec and can be called directly
     spec <- function(.data) {
       apply_summarise_by_spec(spec_list, .data)
     }
-    
+
     # Attach the spec_list as an attribute and set the class
     attr(spec, "spec_list") <- spec_list
     class(spec) <- c("multieam_summarise_by_spec", "function")
-    
+
     return(spec)
   }
 
@@ -226,17 +226,17 @@ apply_summarise_by_spec <- function(spec_list, .data) {
     # Use the shared implementation
     summarise_by_impl(.data, op$dots, op$.by, op$.wider_by)
   })
-  
+
   # Combine results using the + operator
   if (length(results) == 1) {
     return(results[[1]])
   }
-  
+
   result <- results[[1]]
   for (i in 2:length(results)) {
     result <- result + results[[i]]
   }
-  
+
   result
 }
 
@@ -252,27 +252,26 @@ apply_summarise_by_spec <- function(spec_list, .data) {
 `+.multieam_summarise_by_spec` <- function(e1, e2) {
   # Handle spec + spec
   if (inherits(e1, "multieam_summarise_by_spec") &&
-      inherits(e2, "multieam_summarise_by_spec")) {
+    inherits(e2, "multieam_summarise_by_spec")) {
     # Extract the spec lists from both
     spec_list1 <- attr(e1, "spec_list")
     spec_list2 <- attr(e2, "spec_list")
-    
+
     # Combine the spec lists
     combined_spec_list <- c(spec_list1, spec_list2)
-    
+
     # Create a new function that applies both specs
     result <- function(.data) {
       apply_summarise_by_spec(combined_spec_list, .data)
     }
-    
+
     # Attach the combined spec list and set the class
     attr(result, "spec_list") <- combined_spec_list
     class(result) <- c("multieam_summarise_by_spec", "function")
-    
+
     return(result)
   }
-  
+
   # If one is not a spec, fall back to default
   NextMethod("+")
 }
-
