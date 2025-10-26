@@ -53,19 +53,13 @@ summary_pipe <-
 # Inspect the spec
 print(summary_pipe)
 
-# Apply it to data later
-cat("\n=== Applying spec to data ===\n")
-result_new <- apply_summarise_by_spec(summary_pipe, df)
+# Apply it to data directly - spec is now callable!
+cat("\n=== Applying spec to data (direct call) ===\n")
+result_new <- summary_pipe(df)
 print(head(result_new))
-
-# Or use it as a function-like object
-cat("\n=== Using spec as a function ===\n")
-result_fn <- summary_pipe$apply(df)
-print(head(result_fn))
 
 ##################################
 # Compare results
 ##################################
 cat("\n=== Comparison ===\n")
 cat("Results are identical:", identical(result_old, result_new), "\n")
-cat("Results are identical (fn):", identical(result_old, result_fn), "\n")

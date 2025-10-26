@@ -30,14 +30,23 @@ summarise_by <- function(
   
   # If .data is missing or NULL, return a spec object for delayed evaluation
   if (is.null(.data)) {
-    spec <- list(
+    spec_list <- list(
       list(
         dots = dots,
         .by = .by,
         .wider_by = .wider_by
       )
     )
-    class(spec) <- "multieam_summarise_by_spec"
+    
+    # Create a function that captures the spec and can be called directly
+    spec <- function(.data) {
+      apply_summarise_by_spec(spec_list, .data)
+    }
+    
+    # Attach the spec_list as an attribute and set the class
+    attr(spec, "spec_list") <- spec_list
+    class(spec) <- c("multieam_summarise_by_spec", "function")
+    
     return(spec)
   }
 
@@ -191,52 +200,29 @@ summarise_by_impl <- function(.data, dots, .by, .wider_by) {
   result
 }
 
-#' Apply a summarise_by spec to data
-#'
-#' This function is called when a `multieam_summarise_by_spec` object is used
-#' as a function. It applies all the stored summarise_by operations to the
-#' provided data.
-#'
-#' @param spec A multieam_summarise_by_spec object
-#' @param .data A data frame to apply the spec to
-#' @param ... Additional arguments (ignored)
-#' @return A data frame with class "multieam_summarise_by_tbl"
-#' @export
-`$.multieam_summarise_by_spec` <- function(spec, name) {
-  if (name == "apply") {
-    return(function(.data) {
-      apply_summarise_by_spec(spec, .data)
-    })
-  }
-  NextMethod("$")
-}
-
 #' @export
 print.multieam_summarise_by_spec <- function(x, ...) {
+  spec_list <- attr(x, "spec_list")
   cat("<multieam_summarise_by_spec>\n")
-  cat("Number of summarise operations:", length(x), "\n")
-  for (i in seq_along(x)) {
+  cat("Number of summarise operations:", length(spec_list), "\n")
+  for (i in seq_along(spec_list)) {
     cat("\nOperation", i, ":\n")
-    cat("  .by:", paste(x[[i]]$.by, collapse = ", "), "\n")
-    cat("  .wider_by:", paste(x[[i]]$.wider_by, collapse = ", "), "\n")
-    cat("  Summary expressions:", length(x[[i]]$dots), "\n")
+    cat("  .by:", paste(spec_list[[i]]$.by, collapse = ", "), "\n")
+    cat("  .wider_by:", paste(spec_list[[i]]$.wider_by, collapse = ", "), "\n")
+    cat("  Summary expressions:", length(spec_list[[i]]$dots), "\n")
   }
   invisible(x)
 }
 
 #' Internal function to apply a spec to data
 #'
-#' @param spec A multieam_summarise_by_spec object
+#' @param spec_list A list of spec operations (the internal spec list)
 #' @param .data A data frame
 #' @return A data frame with class "multieam_summarise_by_tbl"
 #' @keywords internal
-apply_summarise_by_spec <- function(spec, .data) {
-  if (!inherits(spec, "multieam_summarise_by_spec")) {
-    stop("spec must be a multieam_summarise_by_spec object")
-  }
-  
+apply_summarise_by_spec <- function(spec_list, .data) {
   # Apply each summarise_by operation and combine with +
-  results <- lapply(spec, function(op) {
+  results <- lapply(spec_list, function(op) {
     # Use the shared implementation
     summarise_by_impl(.data, op$dots, op$.by, op$.wider_by)
   })
@@ -254,18 +240,6 @@ apply_summarise_by_spec <- function(spec, .data) {
   result
 }
 
-#' Make multieam_summarise_by_spec callable as a function
-#'
-#' @param x A multieam_summarise_by_spec object
-#' @param ... Arguments passed to the function (expects .data as first arg)
-#' @return Result of applying the spec to data
-#' @keywords internal
-as.function.multieam_summarise_by_spec <- function(x, ...) {
-  function(.data) {
-    apply_summarise_by_spec(x, .data)
-  }
-}
-
 #' Add two summarise_by specs together
 #'
 #' S3 method for the + operator to combine two `multieam_summarise_by_spec`
@@ -279,8 +253,22 @@ as.function.multieam_summarise_by_spec <- function(x, ...) {
   # Handle spec + spec
   if (inherits(e1, "multieam_summarise_by_spec") &&
       inherits(e2, "multieam_summarise_by_spec")) {
-    result <- c(e1, e2)
-    class(result) <- "multieam_summarise_by_spec"
+    # Extract the spec lists from both
+    spec_list1 <- attr(e1, "spec_list")
+    spec_list2 <- attr(e2, "spec_list")
+    
+    # Combine the spec lists
+    combined_spec_list <- c(spec_list1, spec_list2)
+    
+    # Create a new function that applies both specs
+    result <- function(.data) {
+      apply_summarise_by_spec(combined_spec_list, .data)
+    }
+    
+    # Attach the combined spec list and set the class
+    attr(result, "spec_list") <- combined_spec_list
+    class(result) <- c("multieam_summarise_by_spec", "function")
+    
     return(result)
   }
   

@@ -82,7 +82,7 @@ sim_output <- run_simulation(
 head(sim_output$open_dataset())
 
 # define the summary procedure
-summary_pipe <- 
+summary_pipe <-
   summarise_by(
     .by = c("condition_idx"),
     # single value
@@ -113,8 +113,8 @@ simulation_sumstat <- map_by_condition(
     complete_df <- cond_df |>
       dplyr::filter(!is.na(rt))
 
-    # extract the summary using apply
-    summary_pipe$apply(complete_df)
+    # extract the summary by calling spec directly
+    summary_pipe(complete_df)
   }
 )
 
@@ -124,7 +124,7 @@ simulation_sumstat <- map_by_condition(
 observed_data <- sim_output$open_dataset() |>
   dplyr::filter(chunk_idx == 1, condition_idx == 1) |>
   dplyr::collect()
-target_sumstat <- summary_pipe$apply(observed_data)
+target_sumstat <- summary_pipe(observed_data)
 
 # Prepare data for ABC fitting
 abc_input <- build_abc_input(
@@ -145,4 +145,3 @@ abc_rejection <- abc::abc(
   tol = 0.05,
   method = "rejection"
 )
-
