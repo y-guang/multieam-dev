@@ -82,9 +82,8 @@ sim_output <- run_simulation(
 head(sim_output$open_dataset())
 
 # define the summary procedure
-summary_pipe <- function(df) {
+summary_pipe <- 
   summarise_by(
-    df,
     .by = c("condition_idx"),
     # single value
     rt_mean = mean(rt),
@@ -98,13 +97,11 @@ summary_pipe <- function(df) {
       summary(model)$aic
     }
   ) +
-    summarise_by(
-      df,
-      .by = c("condition_idx", "item_idx"),
-      rt_mean = mean(rt),
-      rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9))
-    )
-}
+  summarise_by(
+    .by = c("condition_idx", "item_idx"),
+    rt_mean = mean(rt),
+    rt_quantiles = quantile(rt, probs = c(0.1, 0.5, 0.9))
+  )
 
 # summarise simulation output
 simulation_sumstat <- map_by_condition(
@@ -116,8 +113,8 @@ simulation_sumstat <- map_by_condition(
     complete_df <- cond_df |>
       dplyr::filter(!is.na(rt))
 
-    # extract the summary
-    summary_pipe(complete_df)
+    # extract the summary using apply
+    summary_pipe$apply(complete_df)
   }
 )
 
@@ -127,7 +124,7 @@ simulation_sumstat <- map_by_condition(
 observed_data <- sim_output$open_dataset() |>
   dplyr::filter(chunk_idx == 1, condition_idx == 1) |>
   dplyr::collect()
-target_sumstat <- summary_pipe(observed_data)
+target_sumstat <- summary_pipe$apply(observed_data)
 
 # Prepare data for ABC fitting
 abc_input <- build_abc_input(
