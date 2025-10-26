@@ -78,8 +78,10 @@ sim_output <- run_simulation(
 #####################
 # abc model prepare #
 #####################
-# preview the output data
+# preview the output data variables
 head(sim_output$open_dataset())
+# uncommented to collect all data into memory (avoid for large sims)
+# sim_output_df <- sim_output$open_dataset() |> dplyr::collect()
 
 # define the summary procedure
 summary_pipe <-
@@ -111,8 +113,7 @@ simulation_sumstat <- map_by_condition(
   function(cond_df) {
     # clean data here
     complete_df <- cond_df |>
-      dplyr::filter(!is.na(rt))
-
+      dplyr::filter(V_beta_0 > 4, !is.na(rt))
     # extract the summary by calling spec directly
     summary_pipe(complete_df)
   }
@@ -137,7 +138,6 @@ abc_input <- build_abc_input(
 #####################
 # ABC model fitting #
 #####################
-
 abc_rejection <- abc::abc(
   target = abc_input$target,
   param = abc_input$param,
