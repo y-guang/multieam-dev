@@ -52,14 +52,10 @@ simulation_output_dir_to_dataset_dir <- function(output_dir) {
 #' accept a data frame representing one condition's results
 #' @param ... Additional arguments passed to the function .f
 #' @param .combine Function to combine results (default: dplyr::bind_rows)
-#' @param .parallel Logical or NULL. Controls processing method:
-#'   \itemize{
-#'     \item \code{NULL}: Automatically determine based on data size and available cores
-#'     \item \code{TRUE}: Force parallel processing
-#'     \item \code{FALSE}: Force sequential processing
-#'   }
+#' @param .parallel Logical or NULL.
 #' @param .n_cores Integer. Number of CPU cores to use for parallel processing.
-#'   If NULL, uses \code{detectCores() - 1}. Only used when \code{.parallel = TRUE}.
+#'   If NULL, uses \code{detectCores() - 1}. Only used when
+#' \code{.parallel = TRUE}.
 #' @param .progress Logical, whether to show a progress bar (default: FALSE)
 #' @return A list containing the results of applying .f to each condition,
 #' with names corresponding to condition indices
