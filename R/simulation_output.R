@@ -118,23 +118,38 @@ map_by_condition <- function(
     if (is.null(.n_cores)) {
       .n_cores <- max(1, parallel::detectCores(logical = FALSE) - 1)
     }
-    
+
     cl <- parallel::makeCluster(min(.n_cores, length(chunk_indices)))
     on.exit(parallel::stopCluster(cl), add = TRUE)
 
-    # Export required objects and functions to cluster
-    # Note: dataset is not thread-safe, so we export the open_dataset function instead
+    # Note: arrow dataset is not thread-safe, export the open_dataset
     open_dataset_fn <- simulation_output$open_dataset
-    process_chunk_parallel <- map_by_condition.process_chunk(open_dataset_fn, .f, ...)
-    parallel::clusterExport(cl,
-      c("open_dataset_fn", ".f", "process_chunk_parallel", "map_by_condition.process_chunk"),
-      envir = environment()
+    process_chunk_parallel <- map_by_condition.process_chunk(
+      open_dataset_fn, .f, ...
     )
-    
+
+    # Export required objects and functions to cluster
+    f_globals <- codetools::findGlobals(.f, merge = FALSE)
+    f_env <- environment(.f)
+    all_globals <- c(f_globals$functions, f_globals$variables)
+    detected_deps <- all_globals[
+      sapply(all_globals, exists, envir = f_env, inherits = TRUE)
+    ]
+    export_vars <- unique(c(
+      "open_dataset_fn",
+      ".f",
+      "process_chunk_parallel",
+      "map_by_condition.process_chunk",
+      detected_deps
+    ))
+
+    parallel::clusterExport(cl, export_vars, envir = environment())
+
     # Load required packages on cluster nodes
     parallel::clusterEvalQ(cl, {
       library(dplyr)
       library(arrow)
+      library(multieam)
     })
 
     # Run parallel processing
@@ -146,7 +161,7 @@ map_by_condition <- function(
       )
     } else {
       if (.progress) {
-        message("Install 'pbapply' package for progress bar support in parallel mode")
+        message("Install 'pbapply' package for progress bar support")
       }
       all_condition_results <- parallel::parLapply(
         cl,
@@ -208,7 +223,7 @@ map_by_condition.process_chunk <- function(open_dataset_fn, .f, ...) {
     } else {
       open_dataset_fn
     }
-    
+
     # Load this chunk's data
     chunk_data <- dataset |>
       dplyr::filter(chunk_idx == !!chunk_idx) |>

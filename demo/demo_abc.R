@@ -110,6 +110,7 @@ summary_pipe <- function(df) {
 simulation_sumstat <- map_by_condition(
   sim_output,
   .progress = TRUE,
+  .parallel = TRUE,
   function(cond_df) {
     # clean data here
     complete_df <- cond_df |>
@@ -147,3 +148,4 @@ abc_rejection <- abc::abc(
   tol = 0.05,
   method = "rejection"
 )
+
