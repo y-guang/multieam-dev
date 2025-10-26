@@ -8,8 +8,8 @@ prior_formulas <- list(
   A_beta_0 ~ distributional::dist_uniform(1.00, 10.00),
   A_beta_1 ~ distributional::dist_uniform(1.00, 10.00),
   # V
-  V_beta_1 ~ distributional::dist_uniform(-0.50, -0.01),
   V_beta_0 ~ distributional::dist_uniform(1.0, 5.0),
+  V_beta_1 ~ distributional::dist_uniform(-0.50, -0.01),
   # ndt
   ndt ~ distributional::dist_uniform(0.01, 3.00),
   # noise param
@@ -43,7 +43,7 @@ sim_config <- new_simulation_config(
   between_trial_formulas = between_trial_formulas,
   item_formulas = item_formulas,
   n_conditions_per_chunk = NULL, # automatic chunking
-  n_conditions = 200,
+  n_conditions = 500,
   n_trials_per_condition = 100,
   n_items = n_items,
   max_reached = n_items,
@@ -113,11 +113,14 @@ simulation_sumstat <- map_by_condition(
   function(cond_df) {
     # clean data here
     complete_df <- cond_df |>
-      dplyr::filter(V_beta_0 > 4, !is.na(rt))
+      dplyr::filter(V_beta_0 > 0, !is.na(rt))
     # extract the summary by calling spec directly
     summary_pipe(complete_df)
   }
 )
+
+# clean non-complete simulations
+simulation_sumstat <- simulation_sumstat[complete.cases(simulation_sumstat),]
 
 # summarized observed/target data
 # pretend observed data is condition 1
@@ -138,10 +141,43 @@ abc_input <- build_abc_input(
 #####################
 # ABC model fitting #
 #####################
-abc_rejection <- abc::abc(
+abc_rejection_model <- abc::abc(
   target = abc_input$target,
   param = abc_input$param,
   sumstat = abc_input$sumstat,
-  tol = 0.05,
+  tol = 0.5,
   method = "rejection"
 )
+
+abc_loclinear_model <- abc::abc(
+  target = abc_input$target,
+  param = abc_input$param,
+  sumstat = abc_input$sumstat,
+  tol = 0.5,
+  method = "loclinear",
+  transf  = c("log", "log", "log", "none", "log", "log")
+)
+
+abc_neuralnet_model <- abc::abc(
+  target = abc_input$target,
+  param = abc_input$param,
+  sumstat = abc_input$sumstat,
+  tol     = 0.05,
+  method  = "neuralnet",
+  sizenet = 8,
+  maxit   = 10000,
+  lambda  = 1e-2,
+  kernel  = "epanechnikov",
+  transf  = c("log", "log", "log", "none", "log", "log")
+)
+####################
+# cross validation #
+####################
+abc_neuralnet_cv <- abc::cv4abc(
+  param = abc_input$param,
+  sumstat = abc_input$sumstat,
+  abc.out = abc_neuralnet_model,
+  nval = 100,
+  tols = c(0.05, 0.1)
+)
+
