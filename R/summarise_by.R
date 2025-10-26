@@ -64,6 +64,15 @@ summarise_by <- function(
 #' @return A data frame with class "multieam_summarise_by_tbl"
 #' @keywords internal
 summarise_by_impl <- function(.data, dots, .by, .wider_by) {
+  # Early return for empty data frames
+  if (nrow(.data) == 0) {
+    # Return a completely empty data frame with proper class
+    result_df <- data.frame()
+    class(result_df) <- c("multieam_summarise_by_tbl", class(result_df))
+    attr(result_df, "wider_by") <- .wider_by
+    return(result_df)
+  }
+  
   # Validate that .wider_by is a subset of .by
   if (!all(.wider_by %in% .by)) {
     stop(
@@ -189,6 +198,14 @@ summarise_by_impl <- function(.data, dots, .by, .wider_by) {
       "  Both tables must have the same .wider_by for joining."
     )
   }
+
+  # Handle empty tables
+  n1 <- nrow(e1)
+  n2 <- nrow(e2)
+  
+  if (n1 == 0 && n2 == 0) return(e1)
+  if (n1 == 0) return(e2)
+  if (n2 == 0) return(e1)
 
   # Join the two tables by the .wider_by columns
   result <- dplyr::full_join(e1, e2, by = wider_by_1)
