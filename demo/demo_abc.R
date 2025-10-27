@@ -120,7 +120,7 @@ simulation_sumstat <- map_by_condition(
 )
 
 # clean non-complete simulations
-simulation_sumstat <- simulation_sumstat[complete.cases(simulation_sumstat),]
+simulation_sumstat <- simulation_sumstat[complete.cases(simulation_sumstat), ]
 
 # summarized observed/target data
 # pretend observed data is condition 1
@@ -155,21 +155,22 @@ abc_loclinear_model <- abc::abc(
   sumstat = abc_input$sumstat,
   tol = 0.5,
   method = "loclinear",
-  transf  = c("log", "log", "log", "none", "log", "log")
+  transf = c("log", "log", "log", "none", "log", "log")
 )
 
 abc_neuralnet_model <- abc::abc(
   target = abc_input$target,
   param = abc_input$param,
   sumstat = abc_input$sumstat,
-  tol     = 0.05,
-  method  = "neuralnet",
+  tol = 0.05,
+  method = "neuralnet",
   sizenet = 8,
-  maxit   = 10000,
-  lambda  = 1e-2,
-  kernel  = "epanechnikov",
-  transf  = c("log", "log", "log", "none", "log", "log")
+  maxit = 10000,
+  lambda = 1e-2,
+  kernel = "epanechnikov",
+  transf = c("log", "log", "log", "none", "log", "log")
 )
+
 ####################
 # cross validation #
 ####################
@@ -187,9 +188,16 @@ plot_parameter_recovery(
   n_cols = 1,
   resid_tol = 0.99,
   interactive = FALSE
-  )
+)
 
 plot_parameter_pair_correlation(
   abc_neuralnet_cv,
   interactive = FALSE
+)
+
+summarise_posterior.abc(
+  abc_rejection_model,
+  # custom summary functions
+  ci_level = 0.95,
+  p10 = function(x) quantile(x, 0.1)
 )
