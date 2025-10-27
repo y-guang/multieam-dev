@@ -1,4 +1,5 @@
 exportPattern("^[[:alpha:]]+")
+S3method(plot_parameter_recovery, cv4abc)
 S3method(print, multieam_simulation_config)
 S3method(print, multieam_summarise_by_spec)
 S3method("+", multieam_summarise_by_tbl)

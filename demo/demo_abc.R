@@ -177,7 +177,15 @@ abc_neuralnet_cv <- abc::cv4abc(
   param = abc_input$param,
   sumstat = abc_input$sumstat,
   abc.out = abc_neuralnet_model,
-  nval = 100,
+  nval = 10,
   tols = c(0.05, 0.1)
 )
+
+plot_parameter_recovery(
+  abc_neuralnet_cv,
+  n_rows = 3,
+  n_cols = 1,
+  resid_tol = 0.99,
+  interactive = FALSE
+  )
 
