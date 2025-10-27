@@ -195,7 +195,7 @@ plot_parameter_pair_correlation(
   interactive = FALSE
 )
 
-summarise_posterior.abc(
+summarise_posterior(
   abc_rejection_model,
   # custom summary functions
   ci_level = 0.95,
