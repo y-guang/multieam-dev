@@ -189,3 +189,7 @@ plot_parameter_recovery(
   interactive = FALSE
   )
 
+plot_parameter_pair_correlation(
+  abc_neuralnet_cv,
+  interactive = FALSE
+)
