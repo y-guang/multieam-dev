@@ -13,6 +13,10 @@ plot_parameter_pair_correlation <- function(data, ...) {
 plot_parameter_pair_correlation.cv4abc <- function(data, ...) {
   # check the parameters
   dots <- rlang::list2(...)
+  method <- dots$method %||% "lm"
+  dots$method <- rlang::zap()
+  formula <- dots$formula %||% (y ~ x)
+  dots$formula <- rlang::zap()
   interactive <- dots$interactive %||% FALSE
   dots$interactive <- rlang::zap()
 
@@ -46,7 +50,17 @@ plot_parameter_pair_correlation.cv4abc <- function(data, ...) {
                      pch = 16, cex = 0.7,
                      col = grDevices::adjustcolor("black", alpha.f = 0.6)
     )
-    if (length(x) > 1) graphics::lines(stats::lowess(x, y), lwd = 2, col = "dodgerblue3")
+    if (length(x) > 1) {
+      tryCatch({
+        fit <- stats::lm(formula, data = data.frame(x = x, y = y))
+        x_seq <- seq(min(x), max(x), length.out = 100)
+        pred <- predict(fit, newdata = data.frame(x = x_seq))
+        graphics::lines(x_seq, pred, lwd = 2, col = "dodgerblue3")
+      }, error = function(e) {
+        # Skip line if model fitting fails
+        invisible(NULL)
+      })
+    }
   }
   
   panel_hist <- function(x, ...) {
