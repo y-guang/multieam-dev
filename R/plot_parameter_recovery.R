@@ -77,7 +77,7 @@ plot_parameter_recovery.cv4abc <- function(data, ...) {
       true_vals <- data$true[, j]
       est_vals <- estimates[, j]
       residuals <- est_vals - true_vals
-      
+
       # Filter by residual tolerance if specified
       if (!is.null(resid_tol)) {
         threshold <- quantile(abs(residuals), resid_tol, na.rm = TRUE)
@@ -86,7 +86,7 @@ plot_parameter_recovery.cv4abc <- function(data, ...) {
         est_vals <- est_vals[keep_idx]
         residuals <- residuals[keep_idx]
       }
-      
+
       # Calculate correlation
       cor_value <- cor(true_vals, est_vals, use = "complete.obs")
 
@@ -100,20 +100,20 @@ plot_parameter_recovery.cv4abc <- function(data, ...) {
       p1 <- ggplot2::ggplot(plot_df, ggplot2::aes(x = true, y = estimate)) +
         ggplot2::geom_point() +
         ggplot2::geom_abline(
-          intercept = 0, 
-          slope = 1, 
-          linetype = "dashed", 
-          color = "red", 
+          intercept = 0,
+          slope = 1,
+          linetype = "dashed",
+          color = "red",
           alpha = 0.5
-          ) +
+        ) +
         ggplot2::geom_smooth(
-          method = method, 
-          formula = formula, 
-          se = FALSE, 
-          color = scales::alpha("blue", 0.5), 
-          alpha = 0.5, 
+          method = method,
+          formula = formula,
+          se = FALSE,
+          color = scales::alpha("blue", 0.5),
+          alpha = 0.5,
           linewidth = 0.8
-          ) +
+        ) +
         ggplot2::labs(
           title = paste0(param_name),
           x = "True",
@@ -135,10 +135,12 @@ plot_parameter_recovery.cv4abc <- function(data, ...) {
         ggplot2::geom_density(
           color = "blue",
         ) +
-        ggplot2::geom_vline(xintercept = 0,           
-        linetype = "dashed", 
-          color = "red", 
-          alpha = 0.5) +
+        ggplot2::geom_vline(
+          xintercept = 0,
+          linetype = "dashed",
+          color = "red",
+          alpha = 0.5
+        ) +
         ggplot2::labs(
           title = paste0("Residuals"),
           x = "Estimate - True",
