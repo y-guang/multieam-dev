@@ -1,5 +1,6 @@
 exportPattern("^[[:alpha:]]+")
 S3method(plot_parameter_pair_correlation, cv4abc)
+S3method(plot_parameter_posterior, abc)
 S3method(plot_parameter_recovery, cv4abc)
 S3method(summarise_posterior, abc)
 S3method(print, multieam_simulation_config)

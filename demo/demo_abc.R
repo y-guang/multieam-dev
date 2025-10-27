@@ -201,3 +201,8 @@ summarise_posterior(
   ci_level = 0.95,
   p10 = function(x) quantile(x, 0.1)
 )
+
+plot_parameter_posterior(
+  abc_rejection_model,
+  abc_input
+)
