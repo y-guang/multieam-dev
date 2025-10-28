@@ -5,12 +5,12 @@
 #' @param data An object containing posterior samples
 #' @param ... Additional arguments passed to methods
 #' @export
-plot_parameter_posterior <- function(data, ...) {
-  UseMethod("plot_parameter_posterior")
+plot_posterior_parameters <- function(data, ...) {
+  UseMethod("plot_posterior_parameters")
 }
 
 #' @export
-plot_parameter_posterior.abc <- function(data, abc_input = NULL, ...) {
+plot_posterior_parameters.abc <- function(data, abc_input = NULL, ...) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("ggplot2 package is required for plotting. Please install it.")
   }

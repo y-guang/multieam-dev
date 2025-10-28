@@ -195,14 +195,14 @@ plot_cv_pair_correlation(
   interactive = FALSE
 )
 
-summarise_parameter_posterior(
+summarise_posterior_parameters(
   abc_rejection_model,
   # custom summary functions
   ci_level = 0.95,
   p10 = function(x) quantile(x, 0.1)
 )
 
-plot_parameter_posterior(
+plot_posterior_parameters(
   abc_rejection_model,
   abc_input
 )
