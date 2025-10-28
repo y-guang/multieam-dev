@@ -1,9 +1,9 @@
-summarise_posterior <- function(data, ...) {
-  UseMethod("summarise_posterior")
+summarise_parameter_posterior <- function(data, ...) {
+  UseMethod("summarise_parameter_posterior")
 }
 
 #' @export
-summarise_posterior.abc <- function(data, ..., ci_level = 0.95) {
+summarise_parameter_posterior.abc <- function(data, ..., ci_level = 0.95) {
   # check the parameters
   dots <- rlang::list2(...)
 

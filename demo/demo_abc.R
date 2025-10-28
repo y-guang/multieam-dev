@@ -182,7 +182,7 @@ abc_neuralnet_cv <- abc::cv4abc(
   tols = c(0.05, 0.1)
 )
 
-plot_parameter_recovery(
+plot_cv_recovery(
   abc_neuralnet_cv,
   n_rows = 3,
   n_cols = 1,
@@ -190,12 +190,12 @@ plot_parameter_recovery(
   interactive = FALSE
 )
 
-plot_parameter_pair_correlation(
+plot_cv_pair_correlation(
   abc_neuralnet_cv,
   interactive = FALSE
 )
 
-summarise_posterior(
+summarise_parameter_posterior(
   abc_rejection_model,
   # custom summary functions
   ci_level = 0.95,

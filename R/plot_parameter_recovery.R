@@ -1,12 +1,12 @@
-#' Plot parameter recovery
+#' Plot CV recovery
 #'
 #' Plotting parameter recovery from cross-validation results.
 #'
 #' @param data An object containing recovery results
 #' @param ... Additional arguments passed to methods
 #' @export
-plot_parameter_recovery <- function(data, ...) {
-  UseMethod("plot_parameter_recovery")
+plot_cv_recovery <- function(data, ...) {
+  UseMethod("plot_cv_recovery")
 }
 
 theme_multieam <- ggplot2::theme_minimal() +
@@ -19,7 +19,7 @@ theme_multieam <- ggplot2::theme_minimal() +
   )
 
 #' @export
-plot_parameter_recovery.cv4abc <- function(data, ...) {
+plot_cv_recovery.cv4abc <- function(data, ...) {
   if (!requireNamespace("ggplot2", quietly = TRUE)) {
     stop("ggplot2 package is required for plotting. Please install it.")
   }

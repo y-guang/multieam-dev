@@ -1,16 +1,16 @@
-#' Plot parameter pair correlation
+#' Plot CV pair correlation
 #'
 #' Create a correlation matrix plot with scatter plots, correlations, and densities.
 #'
 #' @param data An object containing parameter estimates
 #' @param ... Additional arguments passed to methods
 #' @export
-plot_parameter_pair_correlation <- function(data, ...) {
-  UseMethod("plot_parameter_pair_correlation")
+plot_cv_pair_correlation <- function(data, ...) {
+  UseMethod("plot_cv_pair_correlation")
 }
 
 #' @export
-plot_parameter_pair_correlation.cv4abc <- function(data, ...) {
+plot_cv_pair_correlation.cv4abc <- function(data, ...) {
   # check the parameters
   dots <- rlang::list2(...)
   method <- dots$method %||% "lm"
