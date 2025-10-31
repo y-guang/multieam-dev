@@ -379,9 +379,15 @@ run_condition <- function(
 #' @return Invisible NULL (results are saved to disk)
 #' @keywords internal
 run_chunk <- function(config, output_dir, chunk_idx) {
-  # Reconstruct paths from output_dir
-  evaluated_conditions_dir <- file.path(output_dir, "evaluated_conditions")
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  # Reconstruct paths from output_dir using fs_proto
+  evaluated_conditions_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$evaluated_conditions_dir
+  )
+  simulation_dataset_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$dataset_dir
+  )
 
   # Read pre-evaluated condition parameters for this chunk
   chunk_prior_params_df <- arrow::open_dataset(evaluated_conditions_dir) |>
@@ -501,23 +507,8 @@ run_simulation <- function(config, output_dir = NULL) {
     )
   }
 
-  # check empty output directory
-  if (dir.exists(output_dir) &&
-    length(list.files(output_dir, all.files = FALSE, no.. = TRUE)) > 0
-  ) {
-    stop("Output directory must be empty: ", output_dir)
-  }
-
-  # Create subdirectories for evaluated conditions and simulation results
-  evaluated_conditions_dir <- file.path(output_dir, "evaluated_conditions")
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
-
-  if (!dir.exists(evaluated_conditions_dir)) {
-    dir.create(evaluated_conditions_dir, recursive = TRUE)
-  }
-  if (!dir.exists(simulation_dataset_dir)) {
-    dir.create(simulation_dataset_dir, recursive = TRUE)
-  }
+  # Setup output directory structure
+  setup_simulation_output_dir(output_dir)
 
   # Evaluate ALL condition parameters upfront
   prior_params <- evaluate_with_dt(
@@ -536,7 +527,10 @@ run_simulation <- function(config, output_dir = NULL) {
   # Save evaluated condition parameters with partitioning by chunk_idx
   arrow::write_dataset(
     prior_params_df,
-    path = evaluated_conditions_dir,
+    path = file.path(
+      output_dir,
+      simulation_output_fs_proto$evaluated_conditions_dir
+    ),
     partitioning = c("chunk_idx"),
     format = "parquet"
   )
@@ -559,7 +553,10 @@ run_simulation <- function(config, output_dir = NULL) {
   )
 
   # persist the config
-  saveRDS(config, file = file.path(output_dir, "simulation_config.rds"))
+  saveRDS(
+    config,
+    file = file.path(output_dir, simulation_output_fs_proto$config_file)
+  )
 
   ret
 }
@@ -657,7 +654,10 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Check for config file
-  config_path <- file.path(output_dir, "simulation_config.rds")
+  config_path <- file.path(
+    output_dir,
+    simulation_output_fs_proto$config_file
+  )
   if (!file.exists(config_path)) {
     stop(
       "Simulation config not found in output directory: ", config_path,
@@ -666,7 +666,10 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Check for simulation dataset directory
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  simulation_dataset_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$dataset_dir
+  )
   if (!dir.exists(simulation_dataset_dir)) {
     stop(
       "Simulation dataset directory not found: ", simulation_dataset_dir,

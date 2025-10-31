@@ -13,7 +13,10 @@ new_simulation_output <- function(
     stop("output_dir does not exist: ", output_dir)
   }
 
-  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+  simulation_dataset_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$dataset_dir
+  )
 
   # Create the output object
   ret <- list(
@@ -235,4 +238,47 @@ map_by_condition.process_chunk <- function(open_dataset_fn, .f, ...) {
 
     return(chunk_results)
   }
+}
+
+simulation_output_fs_proto <- list(
+  config_file = "simulation_config.rds",
+  dataset_dir = "simulation_dataset",
+  evaluated_conditions_dir = "evaluated_conditions"
+)
+
+#' Setup simulation output directory structure
+#'
+#' Creates and validates the output directory structure for a simulation.
+#' This function ensures the directory is empty (or creates it), then creates
+#' the required subdirectories based on simulation_output_fs_proto.
+#'
+#' @param output_dir The base output directory path
+#' @return The output_dir path (invisibly for chaining)
+#' @keywords internal
+setup_simulation_output_dir <- function(output_dir) {
+  # check empty output directory
+  if (dir.exists(output_dir) &&
+    length(list.files(output_dir, all.files = FALSE, no.. = TRUE)) > 0
+  ) {
+    stop("Output directory must be empty: ", output_dir)
+  }
+
+  # Create subdirectories based on fs_proto
+  evaluated_conditions_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$evaluated_conditions_dir
+  )
+  simulation_dataset_dir <- file.path(
+    output_dir,
+    simulation_output_fs_proto$dataset_dir
+  )
+
+  if (!dir.exists(evaluated_conditions_dir)) {
+    dir.create(evaluated_conditions_dir, recursive = TRUE)
+  }
+  if (!dir.exists(simulation_dataset_dir)) {
+    dir.create(simulation_dataset_dir, recursive = TRUE)
+  }
+
+  invisible(output_dir)
 }
