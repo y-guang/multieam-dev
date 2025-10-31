@@ -518,8 +518,16 @@ run_simulation <- function(config, output_dir = NULL) {
   )
 
   # Prepare data frame with chunk_idx for partitioning
-  prior_params_df <- as.data.frame(prior_params)
-  prior_params_df$condition_idx <- seq_len(config$n_conditions)
+  # Handle case where prior_formulas is empty
+  if (length(prior_params) == 0) {
+    prior_params_df <- data.frame(
+      condition_idx = seq_len(config$n_conditions)
+    )
+  } else {
+    prior_params_df <- as.data.frame(prior_params)
+    prior_params_df$condition_idx <- seq_len(config$n_conditions)
+  }
+
   prior_params_df$chunk_idx <- ceiling(
     prior_params_df$condition_idx / config$n_conditions_per_chunk
   )
