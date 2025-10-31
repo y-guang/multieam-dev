@@ -13,8 +13,7 @@ new_simulation_output <- function(
     stop("output_dir does not exist: ", output_dir)
   }
 
-  # Get the dataset directory
-  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
 
   # Create the output object
   ret <- list(
@@ -31,14 +30,6 @@ new_simulation_output <- function(
   # Create S3 object
   structure(ret, class = "multieam_simulation_output")
 }
-
-#' Get the dataset directory from the simulation output directory
-#'
-#' @keywords internal
-simulation_output_dir_to_dataset_dir <- function(output_dir) {
-  file.path(output_dir, "simulation_dataset")
-}
-
 
 #' Map a function by condition across simulation output chunks
 #'

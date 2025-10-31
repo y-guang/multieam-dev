@@ -374,42 +374,38 @@ run_condition <- function(
 #' using Arrow's write_dataset with partitioning by chunk_idx.
 #' @param config A multieam_simulation_config object containing all simulation
 #' parameters
-#' @param output_dir The directory to save results to
+#' @param output_dir The base output directory
 #' @param chunk_idx The chunk index for partitioning (1-based)
 #' @return Invisible NULL (results are saved to disk)
 #' @keywords internal
 run_chunk <- function(config, output_dir, chunk_idx) {
-  # Calculate which conditions this chunk should process (1-based indexing)
-  start_condition <- (chunk_idx - 1) * config$n_conditions_per_chunk + 1
-  end_condition <- min(
-    chunk_idx * config$n_conditions_per_chunk,
-    config$n_conditions
-  )
-  n_conditions_in_chunk <- end_condition - start_condition + 1
+  # Reconstruct paths from output_dir
+  evaluated_conditions_dir <- file.path(output_dir, "evaluated_conditions")
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
 
-  # Generate condition parameters from prior formulas for only this chunk
-  chunk_prior_params <- evaluate_with_dt(
-    formulas = config$prior_formulas,
-    data = list(),
-    n = n_conditions_in_chunk
-  )
+  # Read pre-evaluated condition parameters for this chunk
+  chunk_prior_params_df <- arrow::open_dataset(evaluated_conditions_dir) |>
+    dplyr::filter(chunk_idx == !!chunk_idx) |>
+    dplyr::collect()
 
-  # create condition settings list for this chunk
-  condition_params_list <- vector("list", n_conditions_in_chunk)
-  for (i in seq_len(n_conditions_in_chunk)) {
-    condition_params_list[[i]] <- lapply(chunk_prior_params, function(x) x[i])
-  }
+  # Sort by condition_idx to ensure proper ordering
+  chunk_prior_params_df <- chunk_prior_params_df |>
+    dplyr::arrange(condition_idx) # nolint: object_usage_linter
+
+  n_conditions_in_chunk <- nrow(chunk_prior_params_df)
+
+  # Convert rows to list of condition settings (each row becomes a named list)
+  condition_params_list <- lapply(
+    seq_len(n_conditions_in_chunk),
+    function(i) as.list(chunk_prior_params_df[i, , drop = FALSE])
+  )
 
   # run each condition in this chunk
   chunk_results <- lapply(
     seq_len(n_conditions_in_chunk),
     function(i) {
-      condition_setting <- condition_params_list[[i]]
-      # Add global condition index (1-based)
-      condition_idx <- start_condition + i - 1
-
       result <- run_condition(
-        condition_setting = condition_setting,
+        condition_setting = condition_params_list[[i]],
         between_trial_formulas = config$between_trial_formulas,
         item_formulas = config$item_formulas,
         n_trials = config$n_trials_per_condition,
@@ -423,8 +419,6 @@ run_chunk <- function(config, output_dir, chunk_idx) {
         trajectories = FALSE
       )
 
-      # Add condition index to the result
-      result$condition_idx <- condition_idx
       return(result)
     }
   )
@@ -432,16 +426,13 @@ run_chunk <- function(config, output_dir, chunk_idx) {
   # Transform results to table format
   flat_results <- flatten_simulation_results(chunk_results)
 
-  # Adjust condition_idx to use global indices instead of chunk-local indices
-  flat_results$condition_idx <- flat_results$condition_idx + start_condition - 1
-
   # Add chunk_idx column for partitioning
   flat_results$chunk_idx <- chunk_idx
 
   # Save to output directory with partitioning by chunk_idx
   arrow::write_dataset(
     flat_results,
-    path = output_dir,
+    path = simulation_dataset_dir,
     partitioning = c("chunk_idx"),
     format = "parquet"
   )
@@ -457,18 +448,13 @@ run_chunk <- function(config, output_dir, chunk_idx) {
 #' hierarchical structure: prior -> condition -> trial -> item. All parameters
 #' are taken from the configuration object.
 #' @param config simulation config object
-#' @param output_dir The directory to save out-of-core results (optional,
-#' will use temp directory if not provided)
+#' @param output_dir The base output directory
 #' @return No return value (results saved to disk)
 #' @export
-run_simulation_serial <- function(config, output_dir = NULL) {
+run_simulation_serial <- function(config, output_dir) {
   # Validate config
   if (!inherits(config, "multieam_simulation_config")) {
     stop("config must be a multieam_simulation_config object")
-  }
-
-  if (is.null(output_dir)) {
-    output_dir <- tempfile(pattern = "multieam_simulation_", tmpdir = tempdir())
   }
 
   # Calculate number of chunks needed
@@ -522,17 +508,48 @@ run_simulation <- function(config, output_dir = NULL) {
     stop("Output directory must be empty: ", output_dir)
   }
 
-  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
+  # Create subdirectories for evaluated conditions and simulation results
+  evaluated_conditions_dir <- file.path(output_dir, "evaluated_conditions")
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
+
+  if (!dir.exists(evaluated_conditions_dir)) {
+    dir.create(evaluated_conditions_dir, recursive = TRUE)
+  }
+  if (!dir.exists(simulation_dataset_dir)) {
+    dir.create(simulation_dataset_dir, recursive = TRUE)
+  }
+
+  # Evaluate ALL condition parameters upfront
+  prior_params <- evaluate_with_dt(
+    formulas = config$prior_formulas,
+    data = list(),
+    n = config$n_conditions
+  )
+
+  # Prepare data frame with chunk_idx for partitioning
+  prior_params_df <- as.data.frame(prior_params)
+  prior_params_df$condition_idx <- seq_len(config$n_conditions)
+  prior_params_df$chunk_idx <- ceiling(
+    prior_params_df$condition_idx / config$n_conditions_per_chunk
+  )
+
+  # Save evaluated condition parameters with partitioning by chunk_idx
+  arrow::write_dataset(
+    prior_params_df,
+    path = evaluated_conditions_dir,
+    partitioning = c("chunk_idx"),
+    format = "parquet"
+  )
 
   if (config$parallel) {
     run_simulation_parallel(
       config = config,
-      output_dir = simulation_dataset_dir
+      output_dir = output_dir
     )
   } else {
     run_simulation_serial(
       config = config,
-      output_dir = simulation_dataset_dir
+      output_dir = output_dir
     )
   }
 
@@ -556,7 +573,7 @@ run_simulation <- function(config, output_dir = NULL) {
 #' It uses the hierarchical structure: prior -> condition -> trial -> item.
 #' All parameters are taken from the configuration object.
 #' @param config A multieam_simulation_config object
-#' @param output_dir The directory to save out-of-core results
+#' @param output_dir The base output directory
 #' @return No return value (results saved to disk)
 #' @export
 run_simulation_parallel <- function(config, output_dir) {
@@ -649,7 +666,7 @@ load_simulation_output <- function(output_dir) {
   }
 
   # Check for simulation dataset directory
-  simulation_dataset_dir <- simulation_output_dir_to_dataset_dir(output_dir)
+  simulation_dataset_dir <- file.path(output_dir, "simulation_dataset")
   if (!dir.exists(simulation_dataset_dir)) {
     stop(
       "Simulation dataset directory not found: ", simulation_dataset_dir,
