@@ -246,7 +246,7 @@ simulation_output_fs_proto <- list(
   evaluated_conditions_dir = "evaluated_conditions"
 )
 
-#' Setup simulation output directory structure
+#' Initialize simulation output directory structure
 #'
 #' Creates and validates the output directory structure for a simulation.
 #' This function ensures the directory is empty (or creates it), then creates
@@ -255,12 +255,15 @@ simulation_output_fs_proto <- list(
 #' @param output_dir The base output directory path
 #' @return The output_dir path (invisibly for chaining)
 #' @keywords internal
-setup_simulation_output_dir <- function(output_dir) {
+init_simulation_output_dir <- function(output_dir) {
   # check empty output directory
   if (dir.exists(output_dir) &&
     length(list.files(output_dir, all.files = FALSE, no.. = TRUE)) > 0
   ) {
-    stop("Output directory must be empty: ", output_dir)
+    stop(
+      "The specified simulation output directory must be empty: ",
+      output_dir
+    )
   }
 
   # Create subdirectories based on fs_proto

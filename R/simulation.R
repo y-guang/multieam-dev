@@ -507,8 +507,8 @@ run_simulation <- function(config, output_dir = NULL) {
     )
   }
 
-  # Setup output directory structure
-  setup_simulation_output_dir(output_dir)
+  # Initialize output directory structure
+  init_simulation_output_dir(output_dir)
 
   # Evaluate ALL condition parameters upfront
   prior_params <- evaluate_with_dt(
