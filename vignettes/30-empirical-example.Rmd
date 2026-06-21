@@ -145,14 +145,14 @@ sim_config <- new_simulation_config(
   item_formulas = item_formulas,
   n_conditions_per_chunk = NULL, # automatic chunking
   n_conditions = 5000,
-  n_trials_per_condition = 1000,
+  n_trials_per_condition = 96,
   n_items = n_items,
   max_reached = n_items,
-  max_t = 60,
+  max_t = 75,
   dt = 0.001,
   noise_mechanism = "add",
   noise_factory = noise_factory,
-  model = "ddm",
+  model = "rdm",
   parallel = TRUE,
   n_cores = NULL, # Will use default: detectCores() - 1
   rand_seed = NULL # Will use default random seed
@@ -239,7 +239,7 @@ posterior_estimator <- "
       Dense(w, 1, softplus),
       Dense(w, 1, softplus),
       Dense(w, 1, softplus),
-      Dense(w, 1, softplus)
+      Dense(w, 1, identity)
     )
 
   psi = Chain(Dense(d, w, relu), Dense(w, w, relu), Dense(w, w, relu))
