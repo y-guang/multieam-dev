@@ -227,14 +227,14 @@ approximately 30 minutes to 1 hour when parallelization is enabled.</p>
 <span>  item_formulas <span class="op">=</span> <span class="va">item_formulas</span>,</span>
 <span>  n_conditions_per_chunk <span class="op">=</span> <span class="cn">NULL</span>, <span class="co"># automatic chunking</span></span>
 <span>  n_conditions <span class="op">=</span> <span class="fl">5000</span>,</span>
-<span>  n_trials_per_condition <span class="op">=</span> <span class="fl">1000</span>,</span>
+<span>  n_trials_per_condition <span class="op">=</span> <span class="fl">96</span>,</span>
 <span>  n_items <span class="op">=</span> <span class="va">n_items</span>,</span>
 <span>  max_reached <span class="op">=</span> <span class="va">n_items</span>,</span>
-<span>  max_t <span class="op">=</span> <span class="fl">60</span>,</span>
+<span>  max_t <span class="op">=</span> <span class="fl">75</span>,</span>
 <span>  dt <span class="op">=</span> <span class="fl">0.001</span>,</span>
 <span>  noise_mechanism <span class="op">=</span> <span class="st">"add"</span>,</span>
 <span>  noise_factory <span class="op">=</span> <span class="va">noise_factory</span>,</span>
-<span>  model <span class="op">=</span> <span class="st">"ddm"</span>,</span>
+<span>  model <span class="op">=</span> <span class="st">"rdm"</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  n_cores <span class="op">=</span> <span class="cn">NULL</span>, <span class="co"># Will use default: detectCores() - 1</span></span>
 <span>  rand_seed <span class="op">=</span> <span class="cn">NULL</span> <span class="co"># Will use default random seed</span></span>
@@ -324,7 +324,7 @@ distributions of model parameters.</p>
 <span><span class="st">      Dense(w, 1, softplus),</span></span>
 <span><span class="st">      Dense(w, 1, softplus),</span></span>
 <span><span class="st">      Dense(w, 1, softplus),</span></span>
-<span><span class="st">      Dense(w, 1, softplus)</span></span>
+<span><span class="st">      Dense(w, 1, identity)</span></span>
 <span><span class="st">    )</span></span>
 <span><span class="st"></span></span>
 <span><span class="st">  psi = Chain(Dense(d, w, relu), Dense(w, w, relu), Dense(w, w, relu))</span></span>
